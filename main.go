@@ -16,6 +16,8 @@ import (
 var listenPort int
 
 func main() {
+	go cpuControl(store.resource.CPU.TargetChan)
+
 	flag.IntVar(&listenPort, "port", 9000, "listen port")
 	flag.Parse()
 	fmt.Println("Listen Port : ", listenPort)
@@ -75,31 +77,32 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func execAction(w http.ResponseWriter, respInfo *ResponseInfo) {
-	if arrayContains(respInfo.Direction.Input.actions, "sleep") {
-		sleep, _ := strconv.Atoi(respInfo.Direction.Action.getValue("sleep"))
-		time.Sleep(time.Duration(sleep) * time.Millisecond)
-	}
-	if arrayContains(respInfo.Direction.Input.actions, "status") {
-		status, _ := strconv.Atoi(respInfo.Direction.Action.getValue("status"))
-		w.WriteHeader(status)
-	}
-	if arrayContains(respInfo.Direction.Input.actions, "cpu") {
-		cpu, _ := strconv.ParseFloat(respInfo.Direction.Action.getValue("cpu"), 64)
-		store.resource.CPU.setTarget(cpu)
-	}
-	if arrayContains(respInfo.Direction.Input.actions, "memory") {
-		memory, _ := strconv.ParseFloat(respInfo.Direction.Action.getValue("memory"), 64)
-		store.resource.Memory.setTarget(memory)
-	}
 	respJSON, _ := json.MarshalIndent(*respInfo, "", "  ")
 	respLength := len(respJSON)
-	if arrayContains(respInfo.Direction.Input.actions, "size") {
-		size, _ := strconv.Atoi(respInfo.Direction.Action.getValue("size"))
-		respLength = size
+	if respInfo.Direction.Input.needsAction() {
+		if arrayContains(respInfo.Direction.Input.actions, "sleep") {
+			sleep, _ := strconv.Atoi(respInfo.Direction.Action.getValue("sleep"))
+			time.Sleep(time.Duration(sleep) * time.Millisecond)
+		}
+		if arrayContains(respInfo.Direction.Input.actions, "status") {
+			status, _ := strconv.Atoi(respInfo.Direction.Action.getValue("status"))
+			w.WriteHeader(status)
+		}
+		if arrayContains(respInfo.Direction.Input.actions, "cpu") {
+			cpu, _ := strconv.ParseFloat(respInfo.Direction.Action.getValue("cpu"), 64)
+			store.resource.CPU.setTarget(cpu)
+		}
+		if arrayContains(respInfo.Direction.Input.actions, "memory") {
+			memory, _ := strconv.ParseFloat(respInfo.Direction.Action.getValue("memory"), 64)
+			store.resource.Memory.setTarget(memory)
+		}
+		if arrayContains(respInfo.Direction.Input.actions, "size") {
+			size, _ := strconv.Atoi(respInfo.Direction.Action.getValue("size"))
+			respLength = size
+		}
 	}
-	w.Header().Set("Content-Length", strconv.Itoa(respLength))
 	w.Header().Set("Content-Type", "text/plain")
-	//fmt.Fprintf(w, "%s %d", string(respJSON), respLength)
+	w.Header().Set("Content-Length", strconv.Itoa(respLength))
 	writeResponse(w, respLength, respJSON)
 }
 

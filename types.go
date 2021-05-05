@@ -19,8 +19,8 @@ func NewDataStore() *DataStore {
 		host: &HostInfo{},
 		node: &NodeInfo{&sync.RWMutex{}, time.Now().UnixNano(), true, 0, 0, 0, 0},
 		resource: &ResourceInfo{
-			ResourceUsage{&sync.RWMutex{}, 0, 0},
-			ResourceUsage{&sync.RWMutex{}, 0, 0},
+			ResourceUsage{&sync.RWMutex{}, make(chan float64), 0, 0},
+			ResourceUsage{&sync.RWMutex{}, make(chan float64), 0, 0},
 		},
 		validator: newValidator(),
 	}
@@ -113,15 +113,16 @@ func (ni *NodeInfo) getClone() *NodeInfo {
 
 // ResourceInfo ... information of os resource
 type ResourceInfo struct {
-	CPU    ResourceUsage
-	Memory ResourceUsage
+	CPU    ResourceUsage `json:"cpu"`
+	Memory ResourceUsage `json:"memory"`
 }
 
 // ResourceUsage ... information of os resource usage
 type ResourceUsage struct {
 	*sync.RWMutex
-	Target  float64
-	Current float64
+	TargetChan chan float64 `json:"-"`
+	Target     float64      `json:"target"`
+	Current    float64      `json:"current"`
 }
 
 func (ru *ResourceUsage) getTarget() float64 {
@@ -133,6 +134,7 @@ func (ru *ResourceUsage) setTarget(value float64) {
 	if ru.getTarget() != value {
 		ru.Lock()
 		defer ru.Unlock()
+		ru.TargetChan <- value
 		ru.Target = value
 	}
 }
@@ -354,6 +356,16 @@ func (qs *QueryString) evaluate(reqInfo *RequestInfo) *QueryString {
 		actionQs.setValue(action, qs.getActionValue(action))
 	}
 	return &actionQs
+}
+
+func (qs *QueryString) needsAction() bool {
+	if len(qs.actions) == 0 {
+		return false
+	}
+	if len(qs.ifUnmatches) != 0 {
+		return false
+	}
+	return true
 }
 
 func (qs *QueryString) getActionValue(key string) (ret string) {
