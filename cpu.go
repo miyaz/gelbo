@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-const tickerGlobal = 100
-const statInterval = 500
+const cpuStressTicker = 100
+const cpuCheckInterval = 500
 
 func cpuControl(cpuTargetChan chan float64) {
 	go procStatParser()
@@ -21,7 +21,7 @@ func cpuControl(cpuTargetChan chan float64) {
 func cpuStress(cpuTargetChan chan float64) {
 	started := false
 	cpuUsage := 0.0
-	t := time.NewTicker(time.Duration(tickerGlobal) * time.Millisecond)
+	t := time.NewTicker(time.Duration(cpuStressTicker) * time.Millisecond)
 	defer t.Stop()
 	quit := make(chan bool)
 	ratio := make(chan float64)
@@ -32,13 +32,9 @@ func cpuStress(cpuTargetChan chan float64) {
 				curCPUUsage := store.resource.CPU.getCurrent()
 				if curCPUUsage < cpuUsage {
 					newRatio := 1 - (cpuUsage-curCPUUsage)/1000
-					//newRatio := 0.99
-					//fmt.Printf("%6.2f < %6.2f: %6.4f %3d\n", curCPUUsage, cpuUsage, newRatio, runtime.NumGoroutine())
 					ratio <- newRatio
 				} else {
 					newRatio := 1 + (curCPUUsage-cpuUsage)/1000
-					//newRatio := 1.01
-					//fmt.Printf("%6.2f > %6.2f: %6.4f %3d\n", curCPUUsage, cpuUsage, newRatio, runtime.NumGoroutine())
 					ratio <- newRatio
 				}
 			}
@@ -60,13 +56,12 @@ func cpuStress(cpuTargetChan chan float64) {
 }
 
 func procStatParser() {
-	//t := time.NewTicker(time.Duration(tickerGlobal) * time.Millisecond)
-	t := time.NewTicker(time.Duration(statInterval) * time.Millisecond)
+	t := time.NewTicker(time.Duration(cpuCheckInterval) * time.Millisecond)
 	defer t.Stop()
 	var prevIdleTime, prevTotalTime uint64
 	for i := 0; ; i++ {
 		select {
-		case <-t.C: //タイマーイベント
+		case <-t.C: //timer event
 			file, err := os.Open("/proc/stat")
 			if err != nil {
 				log.Fatal(err)
@@ -115,9 +110,6 @@ func cpuUsageController(ratio chan float64, quit chan bool) {
 				if interval > 1.0 {
 					t.Stop()
 					t = time.NewTicker(time.Duration(interval) * time.Millisecond)
-					//log.Println("ticker changing to " + fmt.Sprint(interval) + " ms")
-				} else {
-					//log.Println("ticker no changing, cause be less than 100.0 ms")
 				}
 			}
 		case <-quit:
