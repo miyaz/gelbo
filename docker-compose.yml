@@ -1,12 +1,10 @@
-version: '3' # composeファイルのバーション指定
+version: '3'
 services:
   goapp:
-    build:
-      context: .
-      dockerfile: Dockerfile.multi-stage-build
-    tty: true # コンテナの起動永続化
+    build: .
+    tty: true
     volumes:
-      - .:/go/src/work # マウントディレクトリ指定
+      - .:/go/src/work
     ports:
-      - "127.0.0.1:9000:9000" # ここを変更していく
+      - "127.0.0.1:9000:9000"
 
