@@ -104,7 +104,9 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) {
 	}
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Content-Length", strconv.Itoa(respLength))
-	writeResponse(w, respLength, respJSON)
+	if err := writeResponse(w, respLength, respJSON); err != nil {
+		fmt.Println(err)
+	}
 }
 
 func arrayContains(arr []string, str string) bool {

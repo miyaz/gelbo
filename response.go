@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"log"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"time"
@@ -16,7 +16,7 @@ const (
 	loopUnit      = 100
 )
 
-func writeResponse(w http.ResponseWriter, respSize int, respJSON []byte) {
+func writeResponse(w http.ResponseWriter, respSize int, respJSON []byte) error {
 	fw := bufio.NewWriter(w)
 	randSrc := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -40,8 +40,9 @@ func writeResponse(w http.ResponseWriter, respSize int, respJSON []byte) {
 
 	err := fw.Flush()
 	if err != nil {
-		log.Fatalln(err)
+		return fmt.Errorf("failed to writeResponse: %w", err)
 	}
+	return nil
 }
 
 func randBytes(randSrc *rand.Rand, n int) []byte {
