@@ -38,6 +38,7 @@ func memoryAllocate(memoryTargetChan chan float64) {
 				allocData = append(allocData, allocMemory(allocUnit))
 			} else {
 				if len(allocData) != 0 {
+					allocData[0] = ""
 					allocData = allocData[1:]
 					runtime.GC()
 				}
