@@ -17,6 +17,7 @@ var listenPort int
 
 func main() {
 	go cpuControl(store.resource.CPU.TargetChan)
+	go memoryControl(store.resource.Memory.TargetChan)
 
 	flag.IntVar(&listenPort, "port", 9000, "listen port")
 	flag.Parse()
