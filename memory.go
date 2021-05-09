@@ -25,7 +25,7 @@ func memoryAllocate(memoryTargetChan chan float64) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	allocUnit := (int)(memTotal / 100)
+	allocUnit := int(memTotal / 100)
 	allocData := []string{}
 	memoryUsage := 0.0
 	t := time.NewTicker(time.Duration(memoryAllocTicker) * time.Millisecond)
