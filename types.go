@@ -104,6 +104,13 @@ func (ni *NodeInfo) addBytes(bytes int64) {
 	defer ni.Unlock()
 	ni.Bytes += bytes
 }
+func (ni *NodeInfo) reflectRequest(bytes int64) {
+	ni.Lock()
+	defer ni.Unlock()
+	ni.Bytes += bytes
+	ni.Count++
+	ni.Time = time.Now().UnixNano()
+}
 func (ni *NodeInfo) getClone() *NodeInfo {
 	ni.RLock()
 	defer ni.RUnlock()
@@ -165,7 +172,7 @@ type RequestInfo struct {
 // Direction ... information of directions
 type Direction struct {
 	Input  *QueryString `json:"input"`
-	Action *QueryString `json:"action"`
+	Result *QueryString `json:"result"`
 }
 
 // ResponseInfo ... information of response
@@ -338,24 +345,24 @@ func splitXFF(xffStr string) []string {
 }
 
 func (qs *QueryString) evaluate(reqInfo *RequestInfo) *QueryString {
-	actionQs := QueryString{}
+	resultQs := QueryString{}
 	if len(qs.actions) == 0 {
-		return &actionQs
+		return &resultQs
 	}
 	for _, invalid := range qs.invalids {
-		actionQs.setValue(invalid, "invalid")
+		resultQs.setValue(invalid, "invalid")
 	}
 	for _, ifMatch := range qs.ifMatches {
-		actionQs.setValue(ifMatch, "matched")
+		resultQs.setValue(ifMatch, "matched")
 	}
 	for _, ifUnmatch := range qs.ifUnmatches {
-		actionQs.setValue(ifUnmatch, "unmatched")
+		resultQs.setValue(ifUnmatch, "unmatched")
 	}
 	// action evaluation
 	for _, action := range qs.actions {
-		actionQs.setValue(action, qs.getActionValue(action))
+		resultQs.setValue(action, qs.getActionValue(action))
 	}
-	return &actionQs
+	return &resultQs
 }
 
 func (qs *QueryString) needsAction() bool {

@@ -71,9 +71,9 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	inputQs := reqInfo.validateQueryString(r.URL.Query())
-	actionQs := inputQs.evaluate(&reqInfo)
+	resultQs := inputQs.evaluate(&reqInfo)
 	respInfo.Direction.Input = inputQs
-	respInfo.Direction.Action = actionQs
+	respInfo.Direction.Result = resultQs
 	execAction(w, &respInfo)
 }
 
@@ -82,23 +82,23 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) {
 	respLength := len(respJSON)
 	if respInfo.Direction.Input.needsAction() {
 		if arrayContains(respInfo.Direction.Input.actions, "sleep") {
-			sleep, _ := strconv.Atoi(respInfo.Direction.Action.getValue("sleep"))
+			sleep, _ := strconv.Atoi(respInfo.Direction.Result.getValue("sleep"))
 			time.Sleep(time.Duration(sleep) * time.Millisecond)
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "status") {
-			status, _ := strconv.Atoi(respInfo.Direction.Action.getValue("status"))
+			status, _ := strconv.Atoi(respInfo.Direction.Result.getValue("status"))
 			w.WriteHeader(status)
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "cpu") {
-			cpu, _ := strconv.ParseFloat(respInfo.Direction.Action.getValue("cpu"), 64)
+			cpu, _ := strconv.ParseFloat(respInfo.Direction.Result.getValue("cpu"), 64)
 			store.resource.CPU.setTarget(cpu)
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "memory") {
-			memory, _ := strconv.ParseFloat(respInfo.Direction.Action.getValue("memory"), 64)
+			memory, _ := strconv.ParseFloat(respInfo.Direction.Result.getValue("memory"), 64)
 			store.resource.Memory.setTarget(memory)
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "size") {
-			size, _ := strconv.Atoi(respInfo.Direction.Action.getValue("size"))
+			size, _ := strconv.Atoi(respInfo.Direction.Result.getValue("size"))
 			respLength = size
 		}
 	}
@@ -106,6 +106,8 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) {
 	w.Header().Set("Content-Length", strconv.Itoa(respLength))
 	if err := writeResponse(w, respLength, respJSON); err != nil {
 		fmt.Println(err)
+	} else {
+		store.node.reflectRequest(int64(respLength))
 	}
 }
 
