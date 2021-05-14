@@ -317,11 +317,12 @@ func (reqInfo *RequestInfo) setIPAddresse(r *http.Request) {
 	} else {
 		reqInfo.ClientIP = xff[0]
 	}
+	if len(xff) == 1 {
+		reqInfo.Proxy1IP = extractIPAddress(r.RemoteAddr)
+	}
 	if len(xff) >= 2 {
 		reqInfo.Proxy1IP = xff[1]
-	}
-	if len(xff) >= 3 {
-		reqInfo.Proxy2IP = xff[2]
+		reqInfo.Proxy2IP = extractIPAddress(r.RemoteAddr)
 	}
 }
 
