@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"time"
 )
@@ -16,8 +17,10 @@ import (
 var listenPort int
 
 func main() {
-	go cpuControl(store.resource.CPU.TargetChan)
-	go memoryControl(store.resource.Memory.TargetChan)
+	if runtime.GOOS == "linux" {
+		go cpuControl(store.resource.CPU.TargetChan)
+		go memoryControl(store.resource.Memory.TargetChan)
+	}
 
 	flag.IntVar(&listenPort, "port", 9000, "listen port")
 	flag.Parse()

@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -141,7 +142,9 @@ func (ru *ResourceUsage) setTarget(value float64) {
 	if ru.getTarget() != value {
 		ru.Lock()
 		defer ru.Unlock()
-		ru.TargetChan <- value
+		if runtime.GOOS == "linux" {
+			ru.TargetChan <- value
+		}
 		ru.Target = value
 	}
 }
