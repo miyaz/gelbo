@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"net"
 	"net/http"
 	"regexp"
 	"runtime"
@@ -421,4 +422,35 @@ func (reqInfo *RequestInfo) getActualValue(key string) (ret string) {
 		ret = store.host.AZ
 	}
 	return
+}
+
+var conns = NewConnectionMap()
+
+// ConnectionMap ... map of connections with exclusive control
+type ConnectionMap struct {
+	sync.RWMutex
+	m map[string]net.Conn
+}
+
+// NewConnectionMap ... create ConnectionMap instance
+func NewConnectionMap() *ConnectionMap {
+	return &ConnectionMap{sync.RWMutex{}, make(map[string]net.Conn)}
+}
+
+func (cm *ConnectionMap) set(k string, v net.Conn) {
+	cm.Lock()
+	defer cm.Unlock()
+	cm.m[k] = v
+}
+
+func (cm *ConnectionMap) get(k string) (net.Conn, bool) {
+	cm.RLock()
+	defer cm.RUnlock()
+	v, ok := cm.m[k]
+	return v, ok
+}
+func (cm *ConnectionMap) del(k string) {
+	cm.Lock()
+	defer cm.Unlock()
+	delete(cm.m, k)
 }

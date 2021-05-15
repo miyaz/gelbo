@@ -11,10 +11,12 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
 var listenPort int
+var cw ConnectionWatcher
 
 func main() {
 	if runtime.GOOS == "linux" {
@@ -37,8 +39,47 @@ func main() {
 	srv := &http.Server{
 		Addr:        ":" + strconv.Itoa(listenPort),
 		IdleTimeout: 65 * time.Second,
+		ConnState:   cw.OnStateChange,
 	}
 	log.Fatalln(srv.ListenAndServe())
+}
+
+// ConnectionWatcher ... connection counter
+type ConnectionWatcher struct {
+	total  int64
+	active int64
+}
+
+// OnStateChange ... records open connections in response to connection
+func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) {
+	switch state {
+	case http.StateNew:
+		atomic.AddInt64(&cw.total, 1)
+	case http.StateActive:
+		if c, ok := conns.get(conn.RemoteAddr().String()); !ok {
+			conns.set(conn.RemoteAddr().String(), c)
+			atomic.AddInt64(&cw.active, 1)
+		}
+	case http.StateIdle:
+		if _, ok := conns.get(conn.RemoteAddr().String()); ok {
+			conns.del(conn.RemoteAddr().String())
+			atomic.AddInt64(&cw.active, -1)
+		}
+	case http.StateHijacked, http.StateClosed:
+		if _, ok := conns.get(conn.RemoteAddr().String()); ok {
+			conns.del(conn.RemoteAddr().String())
+			atomic.AddInt64(&cw.active, -1)
+		}
+		atomic.AddInt64(&cw.total, -1)
+	}
+}
+
+func (cw *ConnectionWatcher) getTotalConns() int {
+	return int(atomic.LoadInt64(&cw.total))
+}
+
+func (cw *ConnectionWatcher) getActiveConns() int {
+	return int(atomic.LoadInt64(&cw.active))
 }
 
 func syncerHandler(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +91,6 @@ func monitorHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
-	//w.WriteHeader(http.StatusNotFound)
 	reqInfo := RequestInfo{
 		Path:   r.URL.EscapedPath(),
 		Query:  r.URL.Query().Encode(),
@@ -78,6 +118,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	respInfo.Direction.Input = inputQs
 	respInfo.Direction.Result = resultQs
 	execAction(w, &respInfo)
+	fmt.Printf("total: %d, active: %d\n", cw.getTotalConns(), cw.getActiveConns())
 }
 
 func execAction(w http.ResponseWriter, respInfo *ResponseInfo) {
