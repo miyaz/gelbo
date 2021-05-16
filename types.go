@@ -19,20 +19,20 @@ var store = NewDataStore()
 func NewDataStore() *DataStore {
 	_store := &DataStore{
 		host: &HostInfo{},
-		node: &NodeInfo{sync.RWMutex{}, time.Now().UnixNano(), true, 0, 0, 0, 0},
+		node: &NodeInfo{&sync.RWMutex{}, time.Now().UnixNano(), true, 0, 0, 0, 0},
 		resource: &ResourceInfo{
-			ResourceUsage{sync.RWMutex{}, make(chan float64), 0, 0},
-			ResourceUsage{sync.RWMutex{}, make(chan float64), 0, 0},
+			ResourceUsage{&sync.RWMutex{}, make(chan float64), 0, 0},
+			ResourceUsage{&sync.RWMutex{}, make(chan float64), 0, 0},
 		},
 		validator: newValidator(),
 	}
-	_store.RWMutex = sync.RWMutex{}
+	_store.RWMutex = &sync.RWMutex{}
 	return _store
 }
 
 // DataStore ... Variables that use mutex
 type DataStore struct {
-	sync.RWMutex
+	*sync.RWMutex
 	host      *HostInfo
 	node      *NodeInfo
 	resource  *ResourceInfo
@@ -55,7 +55,7 @@ type HostInfo struct {
 
 // NodeInfo ... information of node
 type NodeInfo struct {
-	sync.RWMutex
+	*sync.RWMutex
 	Time      int64 `json:"time"`
 	Reachable bool  `json:"reachable"`
 
@@ -128,7 +128,7 @@ type ResourceInfo struct {
 
 // ResourceUsage ... information of os resource usage
 type ResourceUsage struct {
-	sync.RWMutex
+	*sync.RWMutex
 	TargetChan chan float64 `json:"-"`
 	Target     float64      `json:"target"`
 	Current    float64      `json:"current"`
@@ -428,13 +428,13 @@ var conns = NewConnectionMap()
 
 // ConnectionMap ... map of connections with exclusive control
 type ConnectionMap struct {
-	sync.RWMutex
+	*sync.RWMutex
 	m map[string]net.Conn
 }
 
 // NewConnectionMap ... create ConnectionMap instance
 func NewConnectionMap() *ConnectionMap {
-	return &ConnectionMap{sync.RWMutex{}, make(map[string]net.Conn)}
+	return &ConnectionMap{&sync.RWMutex{}, make(map[string]net.Conn)}
 }
 
 func (cm *ConnectionMap) set(k string, v net.Conn) {
