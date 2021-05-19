@@ -56,8 +56,8 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 	case http.StateNew:
 		atomic.AddInt64(&cw.total, 1)
 	case http.StateActive:
-		if c, ok := conns.get(conn.RemoteAddr().String()); !ok {
-			conns.set(conn.RemoteAddr().String(), c)
+		if _, ok := conns.get(conn.RemoteAddr().String()); !ok {
+			conns.set(conn.RemoteAddr().String(), conn)
 			atomic.AddInt64(&cw.active, 1)
 		}
 	case http.StateIdle:

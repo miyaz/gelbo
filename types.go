@@ -311,7 +311,8 @@ func combineValues(input map[string][]string) map[string]string {
 }
 
 func (reqInfo *RequestInfo) setIPAddresse(r *http.Request) {
-	reqInfo.TargetIP = extractIPAddress(r.Host)
+	conn, _ := conns.get(r.RemoteAddr)
+	reqInfo.TargetIP = extractIPAddress(conn.LocalAddr().String())
 	xff := splitXFF(r.Header.Get("X-Forwarded-For"))
 	if len(xff) == 0 {
 		reqInfo.ClientIP = extractIPAddress(r.RemoteAddr)
