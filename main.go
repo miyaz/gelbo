@@ -9,8 +9,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -33,6 +35,7 @@ func main() {
 	store.host.Name, _ = os.Hostname()
 	store.host.IP = getIPAddress()
 
+	http.HandleFunc("/cmd/", cmdHandler)
 	http.HandleFunc("/syncer/", syncerHandler)
 	http.HandleFunc("/monitor/", monitorHandler)
 	http.HandleFunc("/", defaultHandler)
@@ -88,6 +91,30 @@ func syncerHandler(w http.ResponseWriter, r *http.Request) {
 
 func monitorHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
+}
+
+func cmdHandler(w http.ResponseWriter, r *http.Request) {
+	qsMap := r.URL.Query()
+	for key, values := range qsMap {
+		if key != "cmd" {
+			continue
+		}
+		for _, value := range values {
+			fmt.Fprintf(w, "%s:\n", value)
+			args := strings.Split(value, " ")
+			var out []byte
+			var err error
+			if len(args) == 1 {
+				out, err = exec.Command(args[0]).Output()
+			} else {
+				out, err = exec.Command(args[0], args[1:]...).Output()
+			}
+			if err != nil {
+				fmt.Fprintf(w, "%v\n", err)
+			}
+			fmt.Fprintf(w, "%s\n", string(out))
+		}
+	}
 }
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
