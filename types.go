@@ -19,7 +19,7 @@ var store = NewDataStore()
 func NewDataStore() *DataStore {
 	_store := &DataStore{
 		host: &HostInfo{},
-		node: &NodeInfo{&sync.RWMutex{}, time.Now().UnixNano(), true, 0, 0, 0, 0},
+		node: &NodeInfo{&sync.RWMutex{}, time.Now().UnixNano(), true, 0, 0, 0, 0, 0, 0},
 		resource: &ResourceInfo{
 			ResourceUsage{&sync.RWMutex{}, make(chan float64), 0, 0},
 			ResourceUsage{&sync.RWMutex{}, make(chan float64), 0, 0},
@@ -59,10 +59,12 @@ type NodeInfo struct {
 	Time      int64 `json:"time"`
 	Reachable bool  `json:"reachable"`
 
-	CPU    float64 `json:"cpu"`
-	Memory float64 `json:"memory"`
-	Count  int64   `json:"count"`
-	Bytes  int64   `json:"bytes"`
+	CPU         float64 `json:"cpu"`
+	Memory      float64 `json:"memory"`
+	Count       int64   `json:"count"`
+	Bytes       int64   `json:"bytes"`
+	ActiveConns int64   `json:"active_conns"`
+	TotalConns  int64   `json:"total_conns"`
 }
 
 func (ni *NodeInfo) getTime() int64 {
