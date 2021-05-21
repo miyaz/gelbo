@@ -35,7 +35,7 @@ func main() {
 	store.host.Name, _ = os.Hostname()
 	store.host.IP = getIPAddress()
 
-	http.HandleFunc("/cmd/", cmdHandler)
+	http.HandleFunc("/exec/", execHandler)
 	http.HandleFunc("/syncer/", syncerHandler)
 	http.HandleFunc("/monitor/", monitorHandler)
 	http.HandleFunc("/", defaultHandler)
@@ -93,7 +93,7 @@ func monitorHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func cmdHandler(w http.ResponseWriter, r *http.Request) {
+func execHandler(w http.ResponseWriter, r *http.Request) {
 	qsMap := r.URL.Query()
 	for key, values := range qsMap {
 		if key != "cmd" {
