@@ -123,7 +123,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 		Query:  r.URL.Query().Encode(),
 		Header: combineValues(r.Header),
 	}
-	reqInfo.Header["Host"] = r.URL.Host
+	reqInfo.Header["Host"] = r.Host
 	reqInfo.setIPAddresse(r)
 	respInfo := ResponseInfo{
 		Host: *store.getHostInfo(),
