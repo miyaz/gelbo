@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"math/rand"
@@ -25,10 +24,6 @@ func main() {
 		go cpuControl(store.resource.CPU.TargetChan)
 		go memoryControl(store.resource.Memory.TargetChan)
 	}
-
-	flag.IntVar(&listenPort, "port", 9000, "listen port")
-	flag.Parse()
-	fmt.Println("Listen Port : ", listenPort)
 
 	rand.Seed(time.Now().UnixNano())
 
