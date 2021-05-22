@@ -1,17 +1,17 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
@@ -22,47 +22,71 @@ var (
 )
 
 func init() {
-	flag.IntVar(&listenPort, "port", 9000, "listen port")
+	flag.IntVar(&listenPort, "listen", 9000, "listen port")
+	flag.IntVar(&syncerPort, "syncer", 9000, "syncer port")
 	flag.Parse()
 	fmt.Println("Listen Port : ", listenPort)
+	fmt.Println("Syncer Port : ", syncerPort)
 
 	if az := getEC2MetaData("availability-zone"); az != "" {
+		fmt.Println("running on AWS")
 		runOnAws = true
 		store.host.AZ = az
+		region := getEC2MetaData("region")
+		vpcID := getEC2MetaData("vpc-id")
+		ec2IpList, err := getEC2IPList(region, vpcID)
+		if err != nil {
+			fmt.Println("ec2.DescribeNetworkInterfaces is not allowed, so turn off syncerMode.")
+		} else {
+			syncerMode = true
+			fmt.Printf("%v\n", ec2IpList)
+		}
+	} else {
+		fmt.Println("detected running on non-AWS")
 	}
-	region := getEC2MetaData("region")
-	vpcID := getEC2MetaData("vpc-id")
-	fmt.Printf("%v\n", getEC2IPList(region, vpcID))
+}
+
+func getFromIMDS(path string) (data string) {
+	// can not access imds from docker container when use aws-sdk-go/aws/ec2metadata
+	addr := "http://169.254.169.254/latest/meta-data"
+	client := http.Client{
+		Timeout: 5 * time.Second,
+	}
+	resp, err := client.Get(addr + path)
+	if err != nil {
+		return ""
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+	return string(body)
 }
 
 func getEC2MetaData(field string) (value string) {
-	sess := session.Must(session.NewSession())
-	svc := ec2metadata.New(sess)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	if svc.AvailableWithContext(ctx) {
-		doc, _ := svc.GetInstanceIdentityDocumentWithContext(ctx)
+	//169.254.169.254/latest/meta-data/placement/availability-zone
+	az := getFromIMDS("/placement/availability-zone")
+	if az != "" {
 		switch field {
 		case "availability-zone":
-			value = doc.AvailabilityZone
+			value = az
 		case "region":
-			value = doc.Region
+			value = az[:len(az)-1]
 		case "vpc-id":
-			mac, _ := svc.GetMetadataWithContext(ctx, "/mac")
-			value, _ = svc.GetMetadataWithContext(ctx, "/network/interfaces/macs/"+mac+"/vpc-id")
+			mac := getFromIMDS("/mac")
+			value = getFromIMDS("/network/interfaces/macs/" + mac + "/vpc-id")
 		default:
 			if strings.Index(field, "/") == -1 {
-				value, _ = svc.GetMetadataWithContext(ctx, "/"+field)
+				value = getFromIMDS("/" + field)
 			} else {
-				value, _ = svc.GetMetadataWithContext(ctx, field)
+				value = getFromIMDS(field)
 			}
 		}
 	}
 	return
 }
 
-func getEC2IPList(region, vpcID string) []string {
+func getEC2IPList(region, vpcID string) ([]string, error) {
 	config := &aws.Config{
 		Region: aws.String(region),
 	}
@@ -90,7 +114,7 @@ func getEC2IPList(region, vpcID string) []string {
 		} else {
 			fmt.Println(err.Error())
 		}
-		return []string{}
+		return nil, err
 	}
 	ipList := []string{}
 	for _, ni := range result.NetworkInterfaces {
@@ -98,11 +122,11 @@ func getEC2IPList(region, vpcID string) []string {
 			ipList = append(ipList, *ni.PrivateIpAddress)
 		}
 	}
-	return ipList
+	return ipList, nil
 }
 
 func canConnect(ip string) bool {
-	conn, err := net.DialTimeout("tcp", ip+":"+strconv.Itoa(listenPort), time.Second)
+	conn, err := net.DialTimeout("tcp", ip+":"+strconv.Itoa(syncerPort), time.Second)
 	if err != nil {
 		return false
 	}

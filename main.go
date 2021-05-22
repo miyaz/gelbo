@@ -17,6 +17,7 @@ import (
 )
 
 var listenPort int
+var syncerPort int
 var cw ConnectionWatcher
 
 func main() {
