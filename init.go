@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,13 +31,12 @@ func init() {
 		fmt.Println("running on AWS")
 		runOnAws = true
 		store.host.AZ = az
-		region := getEC2MetaData("region")
-		vpcID := getEC2MetaData("vpc-id")
-		ec2IpList, err := getEC2IPList(region, vpcID)
+		ec2IpList, err := getEC2IPList()
 		if err != nil {
 			fmt.Println("ec2.DescribeNetworkInterfaces is not allowed, so turn off syncerMode.")
 		} else {
 			syncerMode = true
+			fmt.Println("running in syncer mode(port:" + strconv.Itoa(syncerPort) + ")")
 			fmt.Printf("%v\n", ec2IpList)
 		}
 	} else {
@@ -86,7 +84,9 @@ func getEC2MetaData(field string) (value string) {
 	return
 }
 
-func getEC2IPList(region, vpcID string) ([]string, error) {
+func getEC2IPList() ([]string, error) {
+	region := getEC2MetaData("region")
+	vpcID := getEC2MetaData("vpc-id")
 	config := &aws.Config{
 		Region: aws.String(region),
 	}
@@ -118,18 +118,7 @@ func getEC2IPList(region, vpcID string) ([]string, error) {
 	}
 	ipList := []string{}
 	for _, ni := range result.NetworkInterfaces {
-		if canConnect(*ni.PrivateIpAddress) {
-			ipList = append(ipList, *ni.PrivateIpAddress)
-		}
+		ipList = append(ipList, *ni.PrivateIpAddress)
 	}
 	return ipList, nil
-}
-
-func canConnect(ip string) bool {
-	conn, err := net.DialTimeout("tcp", ip+":"+strconv.Itoa(syncerPort), time.Second)
-	if err != nil {
-		return false
-	}
-	defer conn.Close()
-	return true
 }

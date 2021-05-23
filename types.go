@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 var store = NewDataStore()
@@ -18,12 +17,9 @@ var store = NewDataStore()
 // NewDataStore ... create datastore instance
 func NewDataStore() *DataStore {
 	_store := &DataStore{
-		host: &HostInfo{},
-		node: &NodeInfo{&sync.RWMutex{}, time.Now().UnixNano(), true, 0, 0, 0, 0, 0, 0},
-		resource: &ResourceInfo{
-			ResourceUsage{&sync.RWMutex{}, make(chan float64), 0, 0},
-			ResourceUsage{&sync.RWMutex{}, make(chan float64), 0, 0},
-		},
+		host:      &HostInfo{},
+		node:      NewNodeInfo(),
+		resource:  NewResourceInfo(),
 		validator: newValidator(),
 	}
 	_store.RWMutex = &sync.RWMutex{}
@@ -53,79 +49,19 @@ type HostInfo struct {
 	AZ   string `json:"az,omitempty"`
 }
 
-// NodeInfo ... information of node
-type NodeInfo struct {
-	*sync.RWMutex
-	Time      int64 `json:"time"`
-	Reachable bool  `json:"reachable"`
-
-	CPU         float64 `json:"cpu"`
-	Memory      float64 `json:"memory"`
-	Count       int64   `json:"count"`
-	Bytes       int64   `json:"bytes"`
-	ActiveConns int64   `json:"active_conns"`
-	TotalConns  int64   `json:"total_conns"`
-}
-
-func (ni *NodeInfo) getTime() int64 {
-	ni.RLock()
-	defer ni.RUnlock()
-	return ni.Time
-}
-func (ni *NodeInfo) setTime(_time int64) {
-	ni.Lock()
-	defer ni.Unlock()
-	ni.Time = _time
-}
-func (ni *NodeInfo) isReachable() bool {
-	ni.RLock()
-	defer ni.RUnlock()
-	return ni.Reachable
-}
-func (ni *NodeInfo) setReachable(r bool) {
-	ni.Lock()
-	defer ni.Unlock()
-	ni.Reachable = r
-}
-func (ni *NodeInfo) getCount() int64 {
-	ni.RLock()
-	defer ni.RUnlock()
-	return ni.Count
-}
-func (ni *NodeInfo) countUp() {
-	ni.Lock()
-	defer ni.Unlock()
-	ni.Count++
-	ni.Time = time.Now().UnixNano()
-}
-func (ni *NodeInfo) getBytes() int64 {
-	ni.RLock()
-	defer ni.RUnlock()
-	return ni.Bytes
-}
-func (ni *NodeInfo) addBytes(bytes int64) {
-	ni.Lock()
-	defer ni.Unlock()
-	ni.Bytes += bytes
-}
-func (ni *NodeInfo) reflectRequest(bytes int64) {
-	ni.Lock()
-	defer ni.Unlock()
-	ni.Bytes += bytes
-	ni.Count++
-	ni.Time = time.Now().UnixNano()
-}
-func (ni *NodeInfo) getClone() *NodeInfo {
-	ni.RLock()
-	defer ni.RUnlock()
-	node := *ni
-	return &node
-}
-
 // ResourceInfo ... information of os resource
 type ResourceInfo struct {
 	CPU    ResourceUsage `json:"cpu"`
 	Memory ResourceUsage `json:"memory"`
+}
+
+// NewResourceInfo ... create resource info instance
+func NewResourceInfo() *ResourceInfo {
+	resrc := &ResourceInfo{
+		CPU:    ResourceUsage{&sync.RWMutex{}, make(chan float64), 0, 0},
+		Memory: ResourceUsage{&sync.RWMutex{}, make(chan float64), 0, 0},
+	}
+	return resrc
 }
 
 // ResourceUsage ... information of os resource usage

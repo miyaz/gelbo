@@ -28,8 +28,22 @@ func main() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	store.host.Name, _ = os.Hostname()
 	store.host.IP = getIPAddress()
+	store.host.Name, _ = os.Hostname()
+	if runOnAws {
+		if ip := getEC2MetaData("local-ipv4"); ip != "" {
+			store.host.IP = ip
+		}
+		if name := getEC2MetaData("local-hostname"); name != "" {
+			store.host.Name = getEC2MetaData("local-hostname")
+		}
+	}
+	syncer.Nodes[store.host.IP] = store.node
+
+	if syncerMode {
+		initSyncer()
+		go loopSyncer()
+	}
 
 	http.HandleFunc("/exec/", execHandler)
 	http.HandleFunc("/syncer/", syncerHandler)
@@ -79,14 +93,6 @@ func (cw *ConnectionWatcher) getTotalConns() int {
 
 func (cw *ConnectionWatcher) getActiveConns() int {
 	return int(atomic.LoadInt64(&cw.active))
-}
-
-func syncerHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-}
-
-func monitorHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
 }
 
 func execHandler(w http.ResponseWriter, r *http.Request) {
