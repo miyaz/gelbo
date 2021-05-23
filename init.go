@@ -21,8 +21,8 @@ var (
 )
 
 func init() {
-	flag.IntVar(&listenPort, "listen", 9000, "listen port")
-	flag.IntVar(&syncerPort, "syncer", 9000, "syncer port")
+	flag.IntVar(&listenPort, "listen", 80, "listen port")
+	flag.IntVar(&syncerPort, "syncer", 80, "syncer port")
 	flag.Parse()
 	fmt.Println("Listen Port : ", listenPort)
 	fmt.Println("Syncer Port : ", syncerPort)
