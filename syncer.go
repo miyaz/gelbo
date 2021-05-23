@@ -16,16 +16,17 @@ import (
 // NodeInfo ... information of node
 type NodeInfo struct {
 	*sync.RWMutex
-	CreatedAt int64 `json:"created_at"`
-	UpdatedAt int64 `json:"updated_at"`
-	Reachable bool  `json:"reachable"`
+	CreatedAt   int64 `json:"created_at"`
+	UpdatedAt   int64 `json:"updated_at"`
+	Reachable   bool  `json:"reachable"`
+	SyncerCount int64 `json:"syncer_count"`
 
-	Count       int64   `json:"count"`
-	CPU         float64 `json:"cpu"`
-	Memory      float64 `json:"memory"`
-	Bytes       int64   `json:"bytes"`
-	ActiveConns int64   `json:"active_conns"`
-	TotalConns  int64   `json:"total_conns"`
+	RequestCount int64   `json:"request_count"`
+	SentBytes    int64   `json:"sent_bytes"`
+	CPU          float64 `json:"cpu"`
+	Memory       float64 `json:"memory"`
+	ActiveConns  int64   `json:"active_conns"`
+	TotalConns   int64   `json:"total_conns"`
 }
 
 // NewNodeInfo ... create node info instance
@@ -44,11 +45,6 @@ func (ni *NodeInfo) getUpdatedAt() int64 {
 	defer ni.RUnlock()
 	return ni.UpdatedAt
 }
-func (ni *NodeInfo) setUpdatedAt(_time int64) {
-	ni.Lock()
-	defer ni.Unlock()
-	ni.UpdatedAt = _time
-}
 func (ni *NodeInfo) isReachable() bool {
 	ni.RLock()
 	defer ni.RUnlock()
@@ -59,10 +55,10 @@ func (ni *NodeInfo) setReachable(r bool) {
 	defer ni.Unlock()
 	ni.Reachable = r
 }
-func (ni *NodeInfo) getCount() int64 {
+func (ni *NodeInfo) getSyncerCount() int64 {
 	ni.RLock()
 	defer ni.RUnlock()
-	return ni.Count
+	return ni.SyncerCount
 }
 func (ni *NodeInfo) updateConns() {
 	ni.Lock()
@@ -79,8 +75,8 @@ func (ni *NodeInfo) updateResources() {
 func (ni *NodeInfo) reflectRequest(bytes int64) {
 	ni.Lock()
 	defer ni.Unlock()
-	ni.Bytes += bytes
-	ni.Count++
+	ni.SentBytes += bytes
+	ni.RequestCount++
 	ni.UpdatedAt = time.Now().UnixNano()
 }
 func (ni *NodeInfo) getClone() *NodeInfo {
@@ -89,16 +85,10 @@ func (ni *NodeInfo) getClone() *NodeInfo {
 	node := *ni
 	return &node
 }
-
-func (ni *NodeInfo) setCount(cnt int64) {
-	ni.Lock()
-	defer ni.Unlock()
-	ni.Count = cnt
-}
 func (ni *NodeInfo) countUp() {
 	ni.Lock()
 	defer ni.Unlock()
-	ni.Count++
+	ni.SyncerCount++
 	ni.UpdatedAt = time.Now().UnixNano()
 }
 func (ni *NodeInfo) getCreatedAt() int64 {
@@ -183,7 +173,7 @@ func mergeSyncer(inSyncer *Syncer) {
 		}
 		if node, ok := syncer.Nodes[nodeIP]; ok {
 			if node.getUpdatedAt() < inNode.getUpdatedAt() {
-				if node.getCount() > inNode.getCount() {
+				if node.getSyncerCount() > inNode.getSyncerCount() {
 					// detect reboot process
 					syncer.Lock()
 					prevNodeIP := nodeIP + "_" + strconv.FormatInt(inNode.getCreatedAt(), 16)
