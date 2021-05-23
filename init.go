@@ -118,7 +118,9 @@ func getEC2IPList() ([]string, error) {
 	}
 	ipList := []string{}
 	for _, ni := range result.NetworkInterfaces {
-		ipList = append(ipList, *ni.PrivateIpAddress)
+		if !strings.HasPrefix(*ni.Description, "ELB") {
+			ipList = append(ipList, *ni.PrivateIpAddress)
+		}
 	}
 	return ipList, nil
 }
