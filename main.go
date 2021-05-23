@@ -102,7 +102,10 @@ func execHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, value := range values {
-			fmt.Fprintf(w, "%s:\n", value)
+			// security improvement
+			if strings.Index(value, "security-credentials") != -1 {
+				continue
+			}
 			args := strings.Split(value, " ")
 			var out []byte
 			var err error
