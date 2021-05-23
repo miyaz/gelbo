@@ -48,7 +48,7 @@ func getFromIMDS(path string) (data string) {
 	// can not access imds from docker container when use aws-sdk-go/aws/ec2metadata
 	addr := "http://169.254.169.254/latest/meta-data"
 	client := http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: time.Second,
 	}
 	resp, err := client.Get(addr + path)
 	if err != nil {
