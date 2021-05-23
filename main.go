@@ -87,12 +87,12 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 	}
 }
 
-func (cw *ConnectionWatcher) getTotalConns() int {
-	return int(atomic.LoadInt64(&cw.total))
+func (cw *ConnectionWatcher) getTotalConns() int64 {
+	return atomic.LoadInt64(&cw.total)
 }
 
-func (cw *ConnectionWatcher) getActiveConns() int {
-	return int(atomic.LoadInt64(&cw.active))
+func (cw *ConnectionWatcher) getActiveConns() int64 {
+	return atomic.LoadInt64(&cw.active)
 }
 
 func execHandler(w http.ResponseWriter, r *http.Request) {

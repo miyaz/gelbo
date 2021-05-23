@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -63,15 +64,17 @@ func (ni *NodeInfo) getCount() int64 {
 	defer ni.RUnlock()
 	return ni.Count
 }
-func (ni *NodeInfo) getBytes() int64 {
-	ni.RLock()
-	defer ni.RUnlock()
-	return ni.Bytes
-}
-func (ni *NodeInfo) addBytes(bytes int64) {
+func (ni *NodeInfo) updateConns() {
 	ni.Lock()
 	defer ni.Unlock()
-	ni.Bytes += bytes
+	ni.ActiveConns = cw.getActiveConns()
+	ni.TotalConns = cw.getTotalConns()
+}
+func (ni *NodeInfo) updateResources() {
+	ni.Lock()
+	defer ni.Unlock()
+	ni.CPU = store.resource.CPU.getCurrent()
+	ni.Memory = store.resource.Memory.getCurrent()
 }
 func (ni *NodeInfo) reflectRequest(bytes int64) {
 	ni.Lock()
@@ -180,14 +183,23 @@ func mergeSyncer(inSyncer *Syncer) {
 		}
 		if node, ok := syncer.Nodes[nodeIP]; ok {
 			if node.getUpdatedAt() < inNode.getUpdatedAt() {
-				syncer.Nodes[nodeIP].setCount(inNode.getCount())
-				syncer.Nodes[nodeIP].setCreatedAt(inNode.getCreatedAt())
-				syncer.Nodes[nodeIP].setUpdatedAt(inNode.getUpdatedAt())
-				syncer.Nodes[nodeIP].setReachable(inNode.isReachable())
+				if node.getCount() > inNode.getCount() {
+					// detect reboot process
+					syncer.Lock()
+					prevNodeIP := nodeIP + "_" + strconv.FormatInt(inNode.getCreatedAt(), 16)
+					syncer.Nodes[prevNodeIP] = syncer.Nodes[nodeIP]
+					syncer.Nodes[prevNodeIP].setReachable(false)
+					syncer.Unlock()
+				}
+				syncer.Lock()
+				syncer.Nodes[nodeIP] = inNode
+				syncer.Unlock()
 			}
 		} else {
 			syncer.Lock()
-			inNode.setReachable(true)
+			if strings.Index(nodeIP, "_") == -1 {
+				inNode.setReachable(true)
+			}
 			syncer.Nodes[nodeIP] = inNode
 			syncer.Unlock()
 		}
@@ -206,8 +218,10 @@ func getSyncerJSON() []byte {
 	return syncerJSON
 }
 func updateSyncer() {
-	syncer.setNow()
+	store.node.updateResources()
+	store.node.updateConns()
 	store.node.setNow()
+	syncer.setNow()
 	syncer.Lock()
 	defer syncer.Unlock()
 	syncer.Nodes[store.host.IP] = store.node.getClone()
@@ -281,7 +295,7 @@ func execSyncer(url string, merge bool) bool {
 	if err := json.Unmarshal(byteArray, &wkSyncer); err != nil {
 		fmt.Printf("failed to json.Unmarshal: %v", err)
 	}
-	if merge {
+	if merge && wkSyncer.SyncedAt > 0 {
 		mergeSyncer(&wkSyncer)
 	}
 	return true
