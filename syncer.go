@@ -215,9 +215,9 @@ func updateSyncer() {
 	store.node.updateResources()
 	store.node.updateConns()
 	store.node.setNow()
+	syncer.setNow()
 	syncer.Lock()
 	defer syncer.Unlock()
-	syncer.setNow()
 	syncer.Nodes[store.host.IP] = store.node.getClone()
 }
 
