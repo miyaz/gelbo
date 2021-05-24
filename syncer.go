@@ -21,12 +21,14 @@ type NodeInfo struct {
 	Reachable   bool  `json:"reachable"`
 	SyncerCount int64 `json:"syncer_count"`
 
-	RequestCount int64   `json:"request_count"`
-	SentBytes    int64   `json:"sent_bytes"`
-	CPU          float64 `json:"cpu"`
-	Memory       float64 `json:"memory"`
-	ActiveConns  int64   `json:"active_conns"`
-	TotalConns   int64   `json:"total_conns"`
+	RequestCount  int64 `json:"request_count"`
+	SentBytes     int64 `json:"sent_bytes"`
+	ReceivedBytes int64 `json:"received_bytes"`
+
+	CPU         float64 `json:"cpu"`
+	Memory      float64 `json:"memory"`
+	ActiveConns int64   `json:"active_conns"`
+	TotalConns  int64   `json:"total_conns"`
 }
 
 // NewNodeInfo ... create node info instance
@@ -72,10 +74,11 @@ func (ni *NodeInfo) updateResources() {
 	ni.CPU = store.resource.CPU.getCurrent()
 	ni.Memory = store.resource.Memory.getCurrent()
 }
-func (ni *NodeInfo) reflectRequest(bytes int64) {
+func (ni *NodeInfo) reflectRequest(receivedBytes, sentBytes int64) {
 	ni.Lock()
 	defer ni.Unlock()
-	ni.SentBytes += bytes
+	ni.ReceivedBytes += receivedBytes
+	ni.SentBytes += sentBytes
 	ni.RequestCount++
 	ni.UpdatedAt = time.Now().UnixNano()
 }

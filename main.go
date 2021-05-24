@@ -150,11 +150,11 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	resultQs := inputQs.evaluate(&reqInfo)
 	respInfo.Direction.Input = inputQs
 	respInfo.Direction.Result = resultQs
-	execAction(w, &respInfo)
+	execAction(w, r, &respInfo)
 	fmt.Printf("total: %d, active: %d\n", cw.getTotalConns(), cw.getActiveConns())
 }
 
-func execAction(w http.ResponseWriter, respInfo *ResponseInfo) {
+func execAction(w http.ResponseWriter, r *http.Request, respInfo *ResponseInfo) {
 	respJSON, _ := json.MarshalIndent(*respInfo, "", "  ")
 	respLength := len(respJSON)
 	if respInfo.Direction.Input.needsAction() {
@@ -184,7 +184,7 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) {
 	if err := writeResponse(w, respLength, respJSON); err != nil {
 		fmt.Println(err)
 	} else {
-		store.node.reflectRequest(int64(respLength))
+		store.node.reflectRequest(r.ContentLength, int64(respLength))
 	}
 }
 
