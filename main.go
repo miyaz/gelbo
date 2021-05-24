@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net"
@@ -150,13 +152,16 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	resultQs := inputQs.evaluate(&reqInfo)
 	respInfo.Direction.Input = inputQs
 	respInfo.Direction.Result = resultQs
-	execAction(w, r, &respInfo)
+
+	reqSize, _ := io.Copy(ioutil.Discard, r.Body)
+	respSize := execAction(w, &respInfo)
+	store.node.reflectRequest(reqSize, respSize)
 	fmt.Printf("total: %d, active: %d\n", cw.getTotalConns(), cw.getActiveConns())
 }
 
-func execAction(w http.ResponseWriter, r *http.Request, respInfo *ResponseInfo) {
+func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
 	respJSON, _ := json.MarshalIndent(*respInfo, "", "  ")
-	respLength := len(respJSON)
+	respSize := len(respJSON)
 	if respInfo.Direction.Input.needsAction() {
 		if arrayContains(respInfo.Direction.Input.actions, "sleep") {
 			sleep, _ := strconv.Atoi(respInfo.Direction.Result.getValue("sleep"))
@@ -176,16 +181,15 @@ func execAction(w http.ResponseWriter, r *http.Request, respInfo *ResponseInfo) 
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "size") {
 			size, _ := strconv.Atoi(respInfo.Direction.Result.getValue("size"))
-			respLength = size
+			respSize = size
 		}
 	}
 	w.Header().Set("Content-Type", "text/plain")
-	w.Header().Set("Content-Length", strconv.Itoa(respLength))
-	if err := writeResponse(w, respLength, respJSON); err != nil {
+	w.Header().Set("Content-Length", strconv.Itoa(respSize))
+	if err := writeResponse(w, respSize, respJSON); err != nil {
 		fmt.Println(err)
-	} else {
-		store.node.reflectRequest(r.ContentLength, int64(respLength))
 	}
+	return int64(respSize)
 }
 
 func arrayContains(arr []string, str string) bool {
