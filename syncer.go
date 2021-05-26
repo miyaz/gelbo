@@ -18,8 +18,8 @@ type NodeInfo struct {
 	*sync.RWMutex
 	CreatedAt   int64 `json:"created_at"`
 	UpdatedAt   int64 `json:"updated_at"`
-	Reachable   bool  `json:"reachable"`
-	SyncerCount int64 `json:"syncer_count"`
+	Reachable   bool  `json:"reachable,omitempty"`
+	SyncerCount int64 `json:"syncer_count,omitempty"`
 
 	RequestCount  int64 `json:"request_count"`
 	SentBytes     int64 `json:"sent_bytes"`
@@ -29,6 +29,8 @@ type NodeInfo struct {
 	Memory      float64 `json:"memory"`
 	ActiveConns int64   `json:"active_conns"`
 	TotalConns  int64   `json:"total_conns"`
+
+	ELBs map[string]*NodeInfo `json:"elbs,omitempty"`
 }
 
 // NewNodeInfo ... create node info instance
@@ -38,6 +40,7 @@ func NewNodeInfo() *NodeInfo {
 		CreatedAt: now,
 		UpdatedAt: now,
 		Reachable: true,
+		ELBs:      make(map[string]*NodeInfo),
 	}
 	_node.RWMutex = &sync.RWMutex{}
 	return _node
@@ -108,6 +111,23 @@ func (ni *NodeInfo) setNow() {
 	ni.Lock()
 	defer ni.Unlock()
 	ni.UpdatedAt = time.Now().UnixNano()
+}
+func (ni *NodeInfo) addTotalConnsELB(remoteAddr string, cnt int64) {
+	ni.Lock()
+	defer ni.Unlock()
+	now := time.Now().UnixNano()
+	if _, ok := ni.ELBs[remoteAddr]; !ok {
+		ni.ELBs[remoteAddr] = &NodeInfo{}
+		ni.ELBs[remoteAddr].CreatedAt = now
+	}
+	ni.ELBs[remoteAddr].UpdatedAt = now
+	ni.ELBs[remoteAddr].TotalConns += cnt
+}
+func (ni *NodeInfo) addActiveConnsELB(remoteAddr string, cnt int64) {
+	ni.Lock()
+	defer ni.Unlock()
+	ni.ELBs[remoteAddr].UpdatedAt = time.Now().UnixNano()
+	ni.ELBs[remoteAddr].TotalConns += cnt
 }
 
 // Syncer ... Latest Data for Syncer

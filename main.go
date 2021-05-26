@@ -70,21 +70,26 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 	switch state {
 	case http.StateNew:
 		atomic.AddInt64(&cw.total, 1)
+		remoteNodes.addTotalConns(extractIPAddress(conn.RemoteAddr().String()), 1)
 	case http.StateActive:
 		if _, ok := conns.get(conn.RemoteAddr().String()); !ok {
 			conns.set(conn.RemoteAddr().String(), conn)
 			atomic.AddInt64(&cw.active, 1)
+			remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), 1)
 		}
 	case http.StateIdle:
 		if _, ok := conns.get(conn.RemoteAddr().String()); ok {
 			conns.del(conn.RemoteAddr().String())
 			atomic.AddInt64(&cw.active, -1)
+			remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), -1)
 		}
 	case http.StateHijacked, http.StateClosed:
 		if _, ok := conns.get(conn.RemoteAddr().String()); ok {
 			conns.del(conn.RemoteAddr().String())
 			atomic.AddInt64(&cw.active, -1)
+			remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), -1)
 		}
+		remoteNodes.addTotalConns(extractIPAddress(conn.RemoteAddr().String()), -1)
 		atomic.AddInt64(&cw.total, -1)
 	}
 }
@@ -155,8 +160,10 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 
 	reqSize, _ := io.Copy(ioutil.Discard, r.Body)
 	respSize := execAction(w, &respInfo)
+
 	store.node.reflectRequest(reqSize, respSize)
-	fmt.Printf("total: %d, active: %d\n", cw.getTotalConns(), cw.getActiveConns())
+	remoteAddr := extractIPAddress(r.RemoteAddr)
+	remoteNodes.m[remoteAddr].reflectRequest(reqSize, respSize)
 }
 
 func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {

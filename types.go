@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 var store = NewDataStore()
@@ -252,17 +253,19 @@ func (reqInfo *RequestInfo) setIPAddresse(r *http.Request) {
 	conn, _ := conns.get(r.RemoteAddr)
 	reqInfo.TargetIP = extractIPAddress(conn.LocalAddr().String())
 	xff := splitXFF(r.Header.Get("X-Forwarded-For"))
-	if len(xff) == 0 {
-		reqInfo.ClientIP = extractIPAddress(r.RemoteAddr)
-	} else {
-		reqInfo.ClientIP = xff[0]
-	}
 	if len(xff) == 1 {
 		reqInfo.Proxy1IP = extractIPAddress(r.RemoteAddr)
 	}
 	if len(xff) >= 2 {
 		reqInfo.Proxy1IP = xff[1]
 		reqInfo.Proxy2IP = extractIPAddress(r.RemoteAddr)
+	}
+	if len(xff) == 0 {
+		reqInfo.ClientIP = extractIPAddress(r.RemoteAddr)
+	} else {
+		reqInfo.ClientIP = xff[0]
+		// use elb
+		store.node.ELBs[reqInfo.Proxy1IP] = remoteNodes.m[reqInfo.Proxy1IP]
 	}
 }
 
@@ -392,4 +395,35 @@ func (cm *ConnectionMap) del(k string) {
 	cm.Lock()
 	defer cm.Unlock()
 	delete(cm.m, k)
+}
+
+var remoteNodes = NewRemoteNodeMap()
+
+// RemoteNodeMap ... map of remote nodes with exclusive control
+type RemoteNodeMap struct {
+	*sync.RWMutex
+	m map[string]*NodeInfo
+}
+
+// NewRemoteNodeMap ... create RemoteNodeMap instance
+func NewRemoteNodeMap() *RemoteNodeMap {
+	return &RemoteNodeMap{&sync.RWMutex{}, make(map[string]*NodeInfo)}
+}
+
+func (rnm *RemoteNodeMap) addTotalConns(remoteAddr string, cnt int64) {
+	rnm.Lock()
+	defer rnm.Unlock()
+	now := time.Now().UnixNano()
+	if _, ok := rnm.m[remoteAddr]; !ok {
+		rnm.m[remoteAddr] = NewNodeInfo()
+		rnm.m[remoteAddr].CreatedAt = now
+	}
+	rnm.m[remoteAddr].UpdatedAt = now
+	rnm.m[remoteAddr].TotalConns += cnt
+}
+func (rnm *RemoteNodeMap) addActiveConns(remoteAddr string, cnt int64) {
+	rnm.Lock()
+	defer rnm.Unlock()
+	rnm.m[remoteAddr].UpdatedAt = time.Now().UnixNano()
+	rnm.m[remoteAddr].ActiveConns += cnt
 }
