@@ -20,6 +20,7 @@ import (
 
 var listenPort int
 var syncerPort int
+var idleTimeout int
 var cw ConnectionWatcher
 
 func main() {
@@ -53,7 +54,7 @@ func main() {
 	http.HandleFunc("/", defaultHandler)
 	srv := &http.Server{
 		Addr:        ":" + strconv.Itoa(listenPort),
-		IdleTimeout: 65 * time.Second,
+		IdleTimeout: time.Duration(idleTimeout) * time.Second,
 		ConnState:   cw.OnStateChange,
 	}
 	log.Fatalln(srv.ListenAndServe())

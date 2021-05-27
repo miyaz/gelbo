@@ -23,9 +23,11 @@ var (
 func init() {
 	flag.IntVar(&listenPort, "listen", 80, "listen port")
 	flag.IntVar(&syncerPort, "syncer", 80, "syncer port")
+	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout")
 	flag.Parse()
-	fmt.Println("Listen Port : ", listenPort)
-	fmt.Println("Syncer Port : ", syncerPort)
+	fmt.Printf("Listen Port : %d\n", listenPort)
+	fmt.Printf("Syncer Port : %d\n", syncerPort)
+	fmt.Printf("Idle Timeout: %d sec\n\n", idleTimeout)
 
 	if az := getEC2MetaData("availability-zone"); az != "" {
 		fmt.Println("running on AWS")
