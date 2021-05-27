@@ -114,7 +114,6 @@ func cpuUsageController(ratio chan float64, quit chan bool) {
 			}
 		case <-quit:
 			t.Stop()
-			log.Println("..ticker stopped!")
 			return
 		}
 	}
