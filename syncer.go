@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -151,10 +152,7 @@ func (s *Syncer) getSyncedAt() int64 {
 var syncer = Syncer{&sync.RWMutex{}, time.Now().UnixNano(), map[string]*NodeInfo{}}
 
 func monitorHandler(w http.ResponseWriter, r *http.Request) {
-	syncer.RLock()
-	defer syncer.RUnlock()
-	syncerJSON, _ := json.MarshalIndent(syncer, "", "  ")
-	fmt.Fprintf(w, "\n%s\n", string(syncerJSON))
+	fmt.Fprintf(w, "\n%s\n", getSyncerReadableJSON())
 }
 
 func syncerHandler(w http.ResponseWriter, r *http.Request) {
@@ -175,6 +173,7 @@ func syncerHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("failed to json.MarshalIndent: %v", err)
 		} else {
 			mergeSyncer(&wkSyncer)
+			updateSyncer()
 			fmt.Fprintln(w, string(getSyncerJSON()))
 		}
 	default:
@@ -220,17 +219,6 @@ func mergeSyncer(inSyncer *Syncer) {
 	}
 }
 
-func getSyncerJSON() []byte {
-	updateSyncer()
-	syncer.RLock()
-	defer syncer.RUnlock()
-	syncerJSON, err := json.MarshalIndent(syncer, "", "  ")
-	if err != nil {
-		fmt.Printf("failed to json.MarshalIndent: %v", err)
-		return []byte{}
-	}
-	return syncerJSON
-}
 func updateSyncer() {
 	store.node.updateResources()
 	store.node.updateConns()
@@ -286,6 +274,7 @@ func execSyncer(url string, merge bool) bool {
 	c := &http.Client{
 		Timeout: 500 * time.Millisecond,
 	}
+	updateSyncer()
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(getSyncerJSON()))
 	if err != nil {
 		fmt.Printf("failed to http.NewRequest: %v", err)
@@ -337,4 +326,61 @@ func getReachableNodeList(nodes []string) (reachableNodes []string) {
 	}
 	wg.Wait()
 	return
+}
+
+func getSyncerJSON() []byte {
+	syncer.RLock()
+	defer syncer.RUnlock()
+	syncerJSON, err := json.MarshalIndent(syncer, "", "  ")
+	if err != nil {
+		fmt.Printf("failed to json.MarshalIndent: %v", err)
+		return []byte{}
+	}
+	return syncerJSON
+}
+
+var utimeRegexp = regexp.MustCompile(`_at": ([0-9]{19}),`)
+var bytesRegexp = regexp.MustCompile(`_bytes": ([0-9]+),`)
+
+func getSyncerReadableJSON() (readableJSON string) {
+	// TODO: tuning replace speed
+	syncerJSON := getSyncerJSON()
+	buffer := bytes.NewBuffer(syncerJSON)
+	line, err := buffer.ReadString('\n')
+	for err == nil {
+		// unixtime -> rfc3339 format string
+		matches := utimeRegexp.FindStringSubmatch(line)
+		if len(matches) > 1 {
+			line = strings.Replace(line, matches[1], `"`+easeReadUnixTime(matches[1])+`"`, 1)
+		} else {
+			// unixtime -> rfc3339 format string
+			matches = bytesRegexp.FindStringSubmatch(line)
+			if len(matches) > 1 {
+				line = strings.Replace(line, matches[1], `"`+easeReadBytes(matches[1])+`"`, 1)
+			}
+		}
+		readableJSON += line
+		line, err = buffer.ReadString('\n')
+	}
+	return
+}
+
+func easeReadBytes(sb string) string {
+	b, _ := strconv.Atoi(sb)
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB",
+		float64(b)/float64(div), "kMGTPE"[exp])
+}
+
+func easeReadUnixTime(st string) string {
+	t, _ := strconv.ParseInt(st, 10, 64)
+	return time.Unix(0, t).Format(time.RFC3339)
 }
