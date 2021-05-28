@@ -48,6 +48,7 @@ func main() {
 		go loopSyncer()
 	}
 
+	http.HandleFunc("/stop/", stopHandler)
 	http.HandleFunc("/exec/", execHandler)
 	http.HandleFunc("/syncer/", syncerHandler)
 	http.HandleFunc("/monitor/", monitorHandler)
@@ -128,6 +129,10 @@ func execHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "%s\n", string(out))
 		}
 	}
+}
+
+func stopHandler(w http.ResponseWriter, r *http.Request) {
+	log.Fatalf("stop request received")
 }
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
