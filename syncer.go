@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -152,7 +153,20 @@ func (s *Syncer) getSyncedAt() int64 {
 var syncer = Syncer{&sync.RWMutex{}, time.Now().UnixNano(), map[string]*NodeInfo{}}
 
 func monitorHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "\n%s\n", getSyncerReadableJSON())
+	var rawFlg bool
+	qsMap := r.URL.Query()
+	for key := range qsMap {
+		if key == "raw" {
+			rawFlg = true
+			break
+		}
+	}
+	updateSyncer()
+	if rawFlg {
+		fmt.Fprintf(w, "\n%s\n", getSyncerJSON())
+	} else {
+		fmt.Fprintf(w, "\n%s\n", getSyncerReadableJSON())
+	}
 }
 
 func syncerHandler(w http.ResponseWriter, r *http.Request) {
@@ -341,6 +355,7 @@ func getSyncerJSON() []byte {
 
 var utimeRegexp = regexp.MustCompile(`_at": ([0-9]{19}),`)
 var bytesRegexp = regexp.MustCompile(`_bytes": ([0-9]+),`)
+var usageRegexp = regexp.MustCompile(`(cpu|memory)": ([0-9.]+),?`)
 
 func getSyncerReadableJSON() (readableJSON string) {
 	// TODO: tuning replace speed
@@ -357,6 +372,12 @@ func getSyncerReadableJSON() (readableJSON string) {
 			matches = bytesRegexp.FindStringSubmatch(line)
 			if len(matches) > 1 {
 				line = strings.Replace(line, matches[1], `"`+easeReadBytes(matches[1])+`"`, 1)
+			} else {
+				// usageRate -> round decimal string
+				matches = usageRegexp.FindStringSubmatch(line)
+				if len(matches) > 1 {
+					line = strings.Replace(line, matches[2], easeReadUsageRate(matches[2]), 1)
+				}
 			}
 		}
 		readableJSON += line
@@ -383,4 +404,9 @@ func easeReadBytes(sb string) string {
 func easeReadUnixTime(st string) string {
 	t, _ := strconv.ParseInt(st, 10, 64)
 	return time.Unix(0, t).Format(time.RFC3339)
+}
+
+func easeReadUsageRate(su string) string {
+	u, _ := strconv.ParseFloat(su, 64)
+	return fmt.Sprintf("%.1f", math.Round(u*10)/10)
 }
