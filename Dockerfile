@@ -1,18 +1,19 @@
 FROM golang:1.16 as builder
 
+ENV CGO_ENABLED=0
+ENV GOOS=linux
+ENV GOARCH=amd64
 WORKDIR /go/src/work
 
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
-
 COPY . .
 
-ARG GOOS=linux
-ARG GOARCH=amd64
 RUN go build -o /go/bin/gelbo -ldflags '-s -w'
 
-FROM golang:1.16 as runner
+FROM alpine as runner
+#FROM golang:1.16 as runner
+RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /go/bin/gelbo /app/gelbo
-
 ENTRYPOINT ["/app/gelbo"]
