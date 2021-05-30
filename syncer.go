@@ -363,7 +363,7 @@ func getSyncerELBJSON() []byte {
 	syncer.RLock()
 	defer syncer.RUnlock()
 	elbNodes := map[string]*NodeInfo{}
-	for _, node := range syncer.Nodes {
+	for ip, node := range syncer.Nodes {
 		for elbIP, elbNode := range node.ELBs {
 			if _, ok := elbNodes[elbIP]; !ok {
 				elbNodes[elbIP] = &NodeInfo{}
@@ -377,8 +377,11 @@ func getSyncerELBJSON() []byte {
 			elbNodes[elbIP].RequestCount += elbNode.RequestCount
 			elbNodes[elbIP].SentBytes += elbNode.SentBytes
 			elbNodes[elbIP].ReceivedBytes += elbNode.ReceivedBytes
-			elbNodes[elbIP].ActiveConns += elbNode.ActiveConns
-			elbNodes[elbIP].TotalConns += elbNode.TotalConns
+			// exclude if retired node
+			if strings.Index(ip, "_") == -1 {
+				elbNodes[elbIP].ActiveConns += elbNode.ActiveConns
+				elbNodes[elbIP].TotalConns += elbNode.TotalConns
+			}
 		}
 	}
 	elbsJSON, err := json.MarshalIndent(elbNodes, "", "  ")
