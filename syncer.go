@@ -359,6 +359,11 @@ func getReachableNodeList(nodes []string) (reachableNodes []string) {
 	return
 }
 
+// ELBNode ... temp struct for json.MarshalIndent
+type ELBNode struct {
+	ELBs map[string]*NodeInfo `json:"elbs"`
+}
+
 func getSyncerELBJSON() []byte {
 	syncer.RLock()
 	defer syncer.RUnlock()
@@ -384,7 +389,7 @@ func getSyncerELBJSON() []byte {
 			}
 		}
 	}
-	elbsJSON, err := json.MarshalIndent(elbNodes, "", "  ")
+	elbsJSON, err := json.MarshalIndent(ELBNode{ELBs: elbNodes}, "", "  ")
 	if err != nil {
 		fmt.Printf("failed to json.MarshalIndent: %v", err)
 		return []byte{}
