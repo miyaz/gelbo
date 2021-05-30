@@ -52,6 +52,7 @@ func main() {
 	http.HandleFunc("/exec/", execHandler)
 	http.HandleFunc("/syncer/", syncerHandler)
 	http.HandleFunc("/monitor/", monitorHandler)
+	http.HandleFunc("/elbstats/", elbStatsHandler)
 	http.HandleFunc("/", defaultHandler)
 	srv := &http.Server{
 		Addr:        ":" + strconv.Itoa(listenPort),

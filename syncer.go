@@ -152,6 +152,23 @@ func (s *Syncer) getSyncedAt() int64 {
 
 var syncer = Syncer{&sync.RWMutex{}, time.Now().UnixNano(), map[string]*NodeInfo{}}
 
+func elbStatsHandler(w http.ResponseWriter, r *http.Request) {
+	var rawFlg bool
+	qsMap := r.URL.Query()
+	for key := range qsMap {
+		if key == "raw" {
+			rawFlg = true
+			break
+		}
+	}
+	updateSyncer()
+	if rawFlg {
+		fmt.Fprintf(w, "\n%s\n", getSyncerELBJSON())
+	} else {
+		fmt.Fprintf(w, "\n%s\n", easeReadJSON(getSyncerELBJSON()))
+	}
+}
+
 func monitorHandler(w http.ResponseWriter, r *http.Request) {
 	var rawFlg bool
 	qsMap := r.URL.Query()
@@ -165,7 +182,7 @@ func monitorHandler(w http.ResponseWriter, r *http.Request) {
 	if rawFlg {
 		fmt.Fprintf(w, "\n%s\n", getSyncerJSON())
 	} else {
-		fmt.Fprintf(w, "\n%s\n", getSyncerReadableJSON())
+		fmt.Fprintf(w, "\n%s\n", easeReadJSON(getSyncerJSON()))
 	}
 }
 
@@ -342,6 +359,37 @@ func getReachableNodeList(nodes []string) (reachableNodes []string) {
 	return
 }
 
+func getSyncerELBJSON() []byte {
+	syncer.RLock()
+	defer syncer.RUnlock()
+	elbNodes := map[string]*NodeInfo{}
+	for _, node := range syncer.Nodes {
+		for elbIP, elbNode := range node.ELBs {
+			if _, ok := elbNodes[elbIP]; ok {
+				if elbNode.CreatedAt < elbNodes[elbIP].CreatedAt {
+					elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
+				}
+				if elbNode.UpdatedAt > elbNodes[elbIP].UpdatedAt {
+					elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
+				}
+				elbNodes[elbIP].RequestCount += elbNode.RequestCount
+				elbNodes[elbIP].SentBytes += elbNode.SentBytes
+				elbNodes[elbIP].ReceivedBytes += elbNode.ReceivedBytes
+				elbNodes[elbIP].ActiveConns += elbNode.ActiveConns
+				elbNodes[elbIP].TotalConns += elbNode.TotalConns
+			} else {
+				elbNodes[elbIP] = elbNode
+			}
+		}
+	}
+	elbsJSON, err := json.MarshalIndent(elbNodes, "", "  ")
+	if err != nil {
+		fmt.Printf("failed to json.MarshalIndent: %v", err)
+		return []byte{}
+	}
+	return elbsJSON
+}
+
 func getSyncerJSON() []byte {
 	syncer.RLock()
 	defer syncer.RUnlock()
@@ -357,10 +405,9 @@ var utimeRegexp = regexp.MustCompile(`_at": ([0-9]{19}),`)
 var bytesRegexp = regexp.MustCompile(`_bytes": ([0-9]+),`)
 var usageRegexp = regexp.MustCompile(`(cpu|memory)": ([0-9.]+),?`)
 
-func getSyncerReadableJSON() (readableJSON string) {
+func easeReadJSON(inputJSON []byte) (readableJSON string) {
 	// TODO: tuning replace speed
-	syncerJSON := getSyncerJSON()
-	buffer := bytes.NewBuffer(syncerJSON)
+	buffer := bytes.NewBuffer(inputJSON)
 	line, err := buffer.ReadString('\n')
 	for err == nil {
 		// unixtime -> rfc3339 format string
