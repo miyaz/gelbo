@@ -265,6 +265,8 @@ func (reqInfo *RequestInfo) setIPAddresse(r *http.Request) {
 	} else {
 		reqInfo.ClientIP = xff[0]
 		// use elb
+		store.node.Lock()
+		defer store.node.Unlock()
 		store.node.ELBs[reqInfo.Proxy1IP] = remoteNodes.m[reqInfo.Proxy1IP]
 	}
 }

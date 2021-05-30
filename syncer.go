@@ -365,21 +365,20 @@ func getSyncerELBJSON() []byte {
 	elbNodes := map[string]*NodeInfo{}
 	for _, node := range syncer.Nodes {
 		for elbIP, elbNode := range node.ELBs {
-			if _, ok := elbNodes[elbIP]; ok {
-				if elbNode.CreatedAt < elbNodes[elbIP].CreatedAt {
-					elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
-				}
-				if elbNode.UpdatedAt > elbNodes[elbIP].UpdatedAt {
-					elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
-				}
-				elbNodes[elbIP].RequestCount += elbNode.RequestCount
-				elbNodes[elbIP].SentBytes += elbNode.SentBytes
-				elbNodes[elbIP].ReceivedBytes += elbNode.ReceivedBytes
-				elbNodes[elbIP].ActiveConns += elbNode.ActiveConns
-				elbNodes[elbIP].TotalConns += elbNode.TotalConns
-			} else {
-				elbNodes[elbIP] = elbNode
+			if _, ok := elbNodes[elbIP]; !ok {
+				elbNodes[elbIP] = &NodeInfo{}
 			}
+			if elbNode.CreatedAt < elbNodes[elbIP].CreatedAt {
+				elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
+			}
+			if elbNode.UpdatedAt > elbNodes[elbIP].UpdatedAt {
+				elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
+			}
+			elbNodes[elbIP].RequestCount += elbNode.RequestCount
+			elbNodes[elbIP].SentBytes += elbNode.SentBytes
+			elbNodes[elbIP].ReceivedBytes += elbNode.ReceivedBytes
+			elbNodes[elbIP].ActiveConns += elbNode.ActiveConns
+			elbNodes[elbIP].TotalConns += elbNode.TotalConns
 		}
 	}
 	elbsJSON, err := json.MarshalIndent(elbNodes, "", "  ")
