@@ -377,7 +377,7 @@ func getSyncerELBJSON() []byte {
 				elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
 			}
 			if elbNode.UpdatedAt > elbNodes[elbIP].UpdatedAt {
-				elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
+				elbNodes[elbIP].UpdatedAt = elbNode.UpdatedAt
 			}
 			elbNodes[elbIP].RequestCount += elbNode.RequestCount
 			elbNodes[elbIP].SentBytes += elbNode.SentBytes
