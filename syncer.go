@@ -371,9 +371,9 @@ func getSyncerELBJSON() []byte {
 	for ip, node := range syncer.Nodes {
 		for elbIP, elbNode := range node.ELBs {
 			if _, ok := elbNodes[elbIP]; !ok {
-				elbNodes[elbIP] = &NodeInfo{}
+				elbNodes[elbIP] = NewNodeInfo()
 			}
-			if elbNode.CreatedAt != 0 && elbNode.CreatedAt < elbNodes[elbIP].CreatedAt {
+			if elbNode.CreatedAt < elbNodes[elbIP].CreatedAt {
 				elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
 			}
 			if elbNode.UpdatedAt > elbNodes[elbIP].UpdatedAt {
