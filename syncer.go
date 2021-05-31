@@ -373,7 +373,7 @@ func getSyncerELBJSON() []byte {
 			if _, ok := elbNodes[elbIP]; !ok {
 				elbNodes[elbIP] = &NodeInfo{}
 			}
-			if elbNode.CreatedAt < elbNodes[elbIP].CreatedAt {
+			if elbNode.CreatedAt != 0 && elbNode.CreatedAt < elbNodes[elbIP].CreatedAt {
 				elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
 			}
 			if elbNode.UpdatedAt > elbNodes[elbIP].UpdatedAt {
@@ -437,6 +437,7 @@ func easeReadJSON(inputJSON []byte) (readableJSON string) {
 		readableJSON += line
 		line, err = buffer.ReadString('\n')
 	}
+	readableJSON += line
 	return
 }
 
