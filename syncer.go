@@ -20,7 +20,7 @@ type NodeInfo struct {
 	*sync.RWMutex
 	CreatedAt   int64 `json:"created_at"`
 	UpdatedAt   int64 `json:"updated_at"`
-	Reachable   bool  `json:"reachable,omitempty"`
+	Reachable   bool  `json:"reachable"`
 	SyncerCount int64 `json:"syncer_count,omitempty"`
 
 	RequestCount  int64 `json:"request_count"`
