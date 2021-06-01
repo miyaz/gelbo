@@ -114,6 +114,16 @@ func (ni *NodeInfo) setNow() {
 	defer ni.Unlock()
 	ni.UpdatedAt = time.Now().UnixNano()
 }
+func (ni *NodeInfo) clearConnsELB() {
+	ni.Lock()
+	defer ni.Unlock()
+	if ni.ELBs != nil {
+		for _, elb := range ni.ELBs {
+			elb.TotalConns = 0
+			elb.ActiveConns = 0
+		}
+	}
+}
 func (ni *NodeInfo) addTotalConnsELB(remoteAddr string, cnt int64) {
 	ni.Lock()
 	defer ni.Unlock()
@@ -218,24 +228,23 @@ func mergeSyncer(inSyncer *Syncer) {
 		return
 	}
 	for nodeIP, inNode := range inSyncer.Nodes {
-		if nodeIP == store.host.IP {
-			continue
-		}
 		if inNode.RWMutex == nil {
 			inNode.RWMutex = &sync.RWMutex{}
 		}
+		if nodeIP == store.host.IP {
+			if store.node.getCreatedAt() > inNode.getCreatedAt() {
+				// detect reboot process
+				syncer.Lock()
+				prevNodeIP := nodeIP + "_retired_" + strconv.FormatInt(inNode.getCreatedAt(), 10)
+				syncer.Nodes[prevNodeIP] = inNode
+				syncer.Nodes[prevNodeIP].setReachable(false)
+				syncer.Nodes[prevNodeIP].clearConnsELB()
+				syncer.Unlock()
+			}
+			continue
+		}
 		if node, ok := syncer.Nodes[nodeIP]; ok {
 			if node.getUpdatedAt() < inNode.getUpdatedAt() {
-				/*
-					if node.getCreatedAt() < inNode.getCreatedAt() && node.getSyncerCount() > inNode.getSyncerCount() {
-						// detect reboot process
-						syncer.Lock()
-						prevNodeIP := nodeIP + "_retired_" + strconv.FormatInt(node.getCreatedAt(), 10)
-						syncer.Nodes[prevNodeIP] = node
-						syncer.Nodes[prevNodeIP].setReachable(false)
-						syncer.Unlock()
-					}
-				*/
 				syncer.Lock()
 				syncer.Nodes[nodeIP] = inNode
 				syncer.Unlock()
