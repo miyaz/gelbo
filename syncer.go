@@ -226,11 +226,11 @@ func mergeSyncer(inSyncer *Syncer) {
 		}
 		if node, ok := syncer.Nodes[nodeIP]; ok {
 			if node.getUpdatedAt() < inNode.getUpdatedAt() {
-				if node.getCreatedAt() != inNode.getCreatedAt() && node.getSyncerCount() > inNode.getSyncerCount() {
+				if node.getCreatedAt() < inNode.getCreatedAt() && node.getSyncerCount() > inNode.getSyncerCount() {
 					// detect reboot process
 					syncer.Lock()
 					prevNodeIP := nodeIP + "_retired_" + strconv.FormatInt(node.getCreatedAt(), 10)
-					syncer.Nodes[prevNodeIP] = syncer.Nodes[nodeIP]
+					syncer.Nodes[prevNodeIP] = node
 					syncer.Nodes[prevNodeIP].setReachable(false)
 					syncer.Unlock()
 				}
