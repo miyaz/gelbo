@@ -434,7 +434,7 @@ func easeReadJSON(inputJSON []byte) (readableJSON string) {
 		if len(matches) > 1 {
 			line = strings.Replace(line, matches[1], `"`+easeReadUnixTime(matches[1])+`"`, 1)
 		} else {
-			// unixtime -> rfc3339 format string
+			// bytes -> human readable string
 			matches = bytesRegexp.FindStringSubmatch(line)
 			if len(matches) > 1 {
 				line = strings.Replace(line, matches[1], `"`+easeReadBytes(matches[1])+`"`, 1)
