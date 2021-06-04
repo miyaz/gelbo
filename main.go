@@ -138,6 +138,7 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	reqInfo := RequestInfo{
+		Method: r.Method,
 		Path:   r.URL.EscapedPath(),
 		Query:  r.URL.Query().Encode(),
 		Header: combineValues(r.Header),
