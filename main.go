@@ -199,7 +199,7 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
 			respSize = size
 		}
 	}
-	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(respSize))
 	if err := writeResponse(w, respSize, respJSON); err != nil {
 		fmt.Println(err)
