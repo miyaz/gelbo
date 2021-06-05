@@ -177,6 +177,8 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
 	respJSON, _ := json.MarshalIndent(*respInfo, "", "  ")
 	respSize := len(respJSON)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(respSize))
 	if respInfo.Direction.Input.needsAction() {
 		if arrayContains(respInfo.Direction.Input.actions, "sleep") {
 			sleep, _ := strconv.Atoi(respInfo.Direction.Result.getValue("sleep"))
@@ -197,10 +199,13 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
 		if arrayContains(respInfo.Direction.Input.actions, "size") {
 			size, _ := strconv.Atoi(respInfo.Direction.Result.getValue("size"))
 			respSize = size
+			w.Header().Set("Content-Length", strconv.Itoa(respSize))
+		}
+		if arrayContains(respInfo.Direction.Input.actions, "addheader") {
+			addHeader := strings.SplitN(respInfo.Direction.Result.getValue("addheader"), ":", 2)
+			w.Header().Set(addHeader[0], addHeader[1])
 		}
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Length", strconv.Itoa(respSize))
 	if err := writeResponse(w, respSize, respJSON); err != nil {
 		fmt.Println(err)
 	}

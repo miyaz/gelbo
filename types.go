@@ -134,6 +134,7 @@ type QueryString struct {
 	Sleep       string `json:"sleep,omitempty"`
 	Size        string `json:"size,omitempty"`
 	Status      string `json:"status,omitempty"`
+	AddHeader   string `json:"addheader,omitempty"`
 	actions     []string
 	ifMatches   []string
 	ifUnmatches []string
@@ -159,6 +160,8 @@ func (qs *QueryString) getValue(key string) (ret string) {
 		ret = qs.Size
 	case "status":
 		ret = qs.Status
+	case "addheader":
+		ret = qs.AddHeader
 	}
 	return
 }
@@ -175,6 +178,8 @@ func (qs *QueryString) setValue(key, value string) {
 		qs.Size = value
 	case "status":
 		qs.Status = value
+	case "addheader":
+		qs.AddHeader = value
 	case "ifclientip":
 		qs.IfClientIP = value
 	case "ifproxy1ip":
@@ -196,7 +201,7 @@ func newValidator() map[string]*regexp.Regexp {
 	const (
 		regexpPercent  = "^(100|[0-9]{1,2})$"
 		regexpNumRange = "^([0-9]+)(?:-([0-9]+))?$"
-		//regexpNumComma = "^([0-9]+)(?:,([0-9]+))*$" // 2個以上はFindStringSubmatchで取得不可のためmatchしたらstrings.Split
+		regexpHeader   = "^([a-zA-Z0-9-]+): .+$"
 		regexpStatus   = "^(200|400|403|404|500|502|503|504)$"
 		regexpHostname = "^([a-zA-Z0-9-.]+)$"
 		regexpAZone    = "^([a-z]{2}-[a-z]+-[1-9][a-d])$"
@@ -209,6 +214,7 @@ func newValidator() map[string]*regexp.Regexp {
 	validator["sleep"] = regexp.MustCompile(regexpNumRange)
 	validator["size"] = regexp.MustCompile(regexpNumRange)
 	validator["status"] = regexp.MustCompile(regexpStatus)
+	validator["addheader"] = regexp.MustCompile(regexpHeader)
 	validator["ifhost"] = regexp.MustCompile(regexpHostname)
 	validator["ifaz"] = regexp.MustCompile(regexpAZone)
 	validator["ifhostip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
@@ -296,11 +302,11 @@ func splitXFF(xffStr string) []string {
 
 func (qs *QueryString) evaluate(reqInfo *RequestInfo) *QueryString {
 	resultQs := QueryString{}
-	if len(qs.actions) == 0 {
-		return &resultQs
-	}
 	for _, invalid := range qs.invalids {
 		resultQs.setValue(invalid, "invalid")
+	}
+	if len(qs.actions) == 0 {
+		return &resultQs
 	}
 	for _, ifMatch := range qs.ifMatches {
 		resultQs.setValue(ifMatch, "matched")
