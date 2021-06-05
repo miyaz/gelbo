@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -137,10 +138,11 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
+	queryStr, _ := url.QueryUnescape(r.URL.Query().Encode())
 	reqInfo := RequestInfo{
 		Method: r.Method,
 		Path:   r.URL.EscapedPath(),
-		Query:  r.URL.Query().Encode(),
+		Query:  queryStr,
 		Header: combineValues(r.Header),
 	}
 	reqInfo.Header["Host"] = r.Host
