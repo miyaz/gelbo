@@ -135,6 +135,7 @@ type QueryString struct {
 	Size        string `json:"size,omitempty"`
 	Status      string `json:"status,omitempty"`
 	AddHeader   string `json:"addheader,omitempty"`
+	DelHeader   string `json:"delheader,omitempty"`
 	actions     []string
 	ifMatches   []string
 	ifUnmatches []string
@@ -162,6 +163,8 @@ func (qs *QueryString) getValue(key string) (ret string) {
 		ret = qs.Status
 	case "addheader":
 		ret = qs.AddHeader
+	case "delheader":
+		ret = qs.DelHeader
 	}
 	return
 }
@@ -180,6 +183,8 @@ func (qs *QueryString) setValue(key, value string) {
 		qs.Status = value
 	case "addheader":
 		qs.AddHeader = value
+	case "delheader":
+		qs.DelHeader = value
 	case "ifclientip":
 		qs.IfClientIP = value
 	case "ifproxy1ip":
@@ -199,14 +204,15 @@ func (qs *QueryString) setValue(key, value string) {
 
 func newValidator() map[string]*regexp.Regexp {
 	const (
-		regexpPercent  = "^(100|[0-9]{1,2})$"
-		regexpNumRange = "^([0-9]+)(?:-([0-9]+))?$"
-		regexpHeader   = "^([a-zA-Z0-9-]+): .+$"
-		regexpStatus   = "^(200|400|403|404|500|502|503|504)$"
-		regexpHostname = "^([a-zA-Z0-9-.]+)$"
-		regexpAZone    = "^([a-z]{2}-[a-z]+-[1-9][a-d])$"
-		regexpIPv4     = "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-		regexpIPv6     = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
+		regexpPercent    = "^(100|[0-9]{1,2})$"
+		regexpNumRange   = "^([0-9]+)(?:-([0-9]+))?$"
+		regexpHeader     = "^([a-zA-Z0-9-]+): .+$"
+		regexpHeaderName = "^([a-zA-Z0-9-]+)$"
+		regexpStatus     = "^(200|400|403|404|500|502|503|504)$"
+		regexpHostname   = "^([a-zA-Z0-9-.]+)$"
+		regexpAZone      = "^([a-z]{2}-[a-z]+-[1-9][a-d])$"
+		regexpIPv4       = "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+		regexpIPv6       = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
 	)
 	validator := map[string]*regexp.Regexp{}
 	validator["cpu"] = regexp.MustCompile(regexpPercent)
@@ -215,6 +221,7 @@ func newValidator() map[string]*regexp.Regexp {
 	validator["size"] = regexp.MustCompile(regexpNumRange)
 	validator["status"] = regexp.MustCompile(regexpStatus)
 	validator["addheader"] = regexp.MustCompile(regexpHeader)
+	validator["delheader"] = regexp.MustCompile(regexpHeaderName)
 	validator["ifhost"] = regexp.MustCompile(regexpHostname)
 	validator["ifaz"] = regexp.MustCompile(regexpAZone)
 	validator["ifhostip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
@@ -435,4 +442,40 @@ func (rnm *RemoteNodeMap) addActiveConns(remoteAddr string, cnt int64) {
 	defer rnm.Unlock()
 	rnm.m[remoteAddr].UpdatedAt = time.Now().UnixNano()
 	rnm.m[remoteAddr].ActiveConns += cnt
+}
+
+var headerMap = NewHeaderMap()
+
+// HeaderMap ... map of response header with exclusive control
+type HeaderMap struct {
+	*sync.RWMutex
+	m map[string]string
+}
+
+// NewHeaderMap ... create HeaderMap instance
+func NewHeaderMap() *HeaderMap {
+	return &HeaderMap{&sync.RWMutex{}, make(map[string]string)}
+}
+
+func (hm *HeaderMap) add(key, value string) {
+	hm.Lock()
+	defer hm.Unlock()
+	hm.m[strings.ToLower(key)] = value
+}
+func (hm *HeaderMap) getAll() map[string]string {
+	m := make(map[string]string)
+	hm.RLock()
+	defer hm.RUnlock()
+	for key, value := range hm.m {
+		m[key] = value
+	}
+	return m
+}
+func (hm *HeaderMap) del(key string) {
+	hm.Lock()
+	defer hm.Unlock()
+	lkey := strings.ToLower(key)
+	if _, ok := hm.m[lkey]; ok {
+		delete(hm.m, lkey)
+	}
 }

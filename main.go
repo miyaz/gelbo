@@ -207,8 +207,14 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "addheader") {
 			addHeader := strings.SplitN(respInfo.Direction.Result.getValue("addheader"), ":", 2)
-			w.Header().Set(addHeader[0], addHeader[1])
+			headerMap.add(addHeader[0], addHeader[1])
 		}
+		if arrayContains(respInfo.Direction.Input.actions, "delheader") {
+			headerMap.del(respInfo.Direction.Result.getValue("delheader"))
+		}
+	}
+	for key, value := range headerMap.getAll() {
+		w.Header().Add(key, value)
 	}
 	if err := writeResponse(w, respSize, respJSON); err != nil {
 		fmt.Println(err)
