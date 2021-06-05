@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -177,7 +178,8 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
-	respJSON, _ := json.MarshalIndent(*respInfo, "", "  ")
+	//respJSON, _ := json.MarshalIndent(*respInfo, "", "  ")
+	respJSON, _ := jsonMarshalIndent(*respInfo)
 	respSize := len(respJSON)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(respSize))
@@ -221,6 +223,18 @@ func arrayContains(arr []string, str string) bool {
 		}
 	}
 	return false
+}
+
+func jsonMarshalIndent(t interface{}) ([]byte, error) {
+	marshalBuffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(marshalBuffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(t); err != nil {
+		return nil, err
+	}
+	var indentBuffer bytes.Buffer
+	err := json.Indent(&indentBuffer, marshalBuffer.Bytes(), "", "  ")
+	return indentBuffer.Bytes(), err
 }
 
 func getIPAddress() string {
