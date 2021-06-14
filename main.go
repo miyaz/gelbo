@@ -183,14 +183,14 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
 	respSize := len(respJSON)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(respSize))
+	statusCode := http.StatusOK
 	if respInfo.Direction.Input.needsAction() {
 		if arrayContains(respInfo.Direction.Input.actions, "sleep") {
 			sleep, _ := strconv.Atoi(respInfo.Direction.Result.getValue("sleep"))
 			time.Sleep(time.Duration(sleep) * time.Millisecond)
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "status") {
-			status, _ := strconv.Atoi(respInfo.Direction.Result.getValue("status"))
-			w.WriteHeader(status)
+			statusCode, _ = strconv.Atoi(respInfo.Direction.Result.getValue("status"))
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "cpu") {
 			cpu, _ := strconv.ParseFloat(respInfo.Direction.Result.getValue("cpu"), 64)
@@ -216,6 +216,7 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
 	for key, value := range headerMap.getAll() {
 		w.Header().Add(key, value)
 	}
+	w.WriteHeader(statusCode)
 	if err := writeResponse(w, respSize, respJSON); err != nil {
 		fmt.Println(err)
 	}
