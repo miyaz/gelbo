@@ -335,9 +335,6 @@ func (qs *QueryString) needsAction() bool {
 	if len(qs.ifUnmatches) != 0 {
 		return false
 	}
-	if len(qs.invalids) != 0 {
-		return false
-	}
 	return true
 }
 
