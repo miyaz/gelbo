@@ -114,8 +114,8 @@ func execHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, value := range values {
-			// security improvement
-			if strings.Index(value, "security-credentials") != -1 {
+			// preventing access to credentials (on ec2/ecs)
+			if strings.Index(value, "credentials/") != -1 {
 				continue
 			}
 			args := strings.Split(value, " ")
