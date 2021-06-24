@@ -208,7 +208,7 @@ func newValidator() map[string]*regexp.Regexp {
 		regexpNumRange   = "^([0-9]+)(?:-([0-9]+))?$"
 		regexpHeader     = "^([a-zA-Z0-9-]+): .+$"
 		regexpHeaderName = "^([a-zA-Z0-9-]+)$"
-		regexpStatus     = "^(200|400|403|404|500|502|503|504)$"
+		regexpStatus     = "^([2-5][0-9]{2})$"
 		regexpHostname   = "^([a-zA-Z0-9-.]+)$"
 		regexpAZone      = "^([a-z]{2}-[a-z]+-[1-9][a-d])$"
 		regexpIPv4       = "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
