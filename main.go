@@ -212,6 +212,12 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
 		if arrayContains(respInfo.Direction.Input.actions, "delheader") {
 			headerMap.del(respInfo.Direction.Result.getValue("delheader"))
 		}
+		if arrayContains(respInfo.Direction.Input.actions, "stdout") {
+			fmt.Printf("%s\n", respInfo.Direction.Result.getValue("stdout"))
+		}
+		if arrayContains(respInfo.Direction.Input.actions, "stderr") {
+			fmt.Fprintf(os.Stderr, "%s\n", respInfo.Direction.Result.getValue("stderr"))
+		}
 	}
 	for key, value := range headerMap.getAll() {
 		w.Header().Add(key, value)

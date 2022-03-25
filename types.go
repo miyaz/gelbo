@@ -136,6 +136,8 @@ type QueryString struct {
 	Status      string `json:"status,omitempty"`
 	AddHeader   string `json:"addheader,omitempty"`
 	DelHeader   string `json:"delheader,omitempty"`
+	Stdout      string `json:"stdout,omitempty"`
+	Stderr      string `json:"stderr,omitempty"`
 	actions     []string
 	ifMatches   []string
 	ifUnmatches []string
@@ -165,6 +167,10 @@ func (qs *QueryString) getValue(key string) (ret string) {
 		ret = qs.AddHeader
 	case "delheader":
 		ret = qs.DelHeader
+	case "stdout":
+		ret = qs.Stdout
+	case "stderr":
+		ret = qs.Stderr
 	}
 	return
 }
@@ -185,6 +191,10 @@ func (qs *QueryString) setValue(key, value string) {
 		qs.AddHeader = value
 	case "delheader":
 		qs.DelHeader = value
+	case "stdout":
+		qs.Stdout = value
+	case "stderr":
+		qs.Stderr = value
 	case "ifclientip":
 		qs.IfClientIP = value
 	case "ifproxy1ip":
@@ -213,6 +223,7 @@ func newValidator() map[string]*regexp.Regexp {
 		regexpAZone      = "^([a-z]{2}-[a-z]+-[1-9][a-d])$"
 		regexpIPv4       = "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
 		regexpIPv6       = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
+		regexpAll        = "^(.*)$"
 	)
 	validator := map[string]*regexp.Regexp{}
 	validator["cpu"] = regexp.MustCompile(regexpPercent)
@@ -222,6 +233,8 @@ func newValidator() map[string]*regexp.Regexp {
 	validator["status"] = regexp.MustCompile(regexpStatus)
 	validator["addheader"] = regexp.MustCompile(regexpHeader)
 	validator["delheader"] = regexp.MustCompile(regexpHeaderName)
+	validator["stdout"] = regexp.MustCompile(regexpAll)
+	validator["stderr"] = regexp.MustCompile(regexpAll)
 	validator["ifhost"] = regexp.MustCompile(regexpHostname)
 	validator["ifaz"] = regexp.MustCompile(regexpAZone)
 	validator["ifhostip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
