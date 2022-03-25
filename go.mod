@@ -1,9 +1,7 @@
 module github.com/miyaz/gelbo
 
-go 1.16
+go 1.18
 
-require (
-	github.com/aws/aws-sdk-go v1.38.64
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
-)
+require github.com/aws/aws-sdk-go v1.43.25
+
+require github.com/jmespath/go-jmespath v0.4.0 // indirect
