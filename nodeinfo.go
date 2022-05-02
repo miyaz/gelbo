@@ -171,12 +171,8 @@ func getStoreNodeELBJSON() []byte {
 		if _, ok := elbNodes[elbIP]; !ok {
 			elbNodes[elbIP] = NewNodeInfo()
 		}
-		if elbNode.CreatedAt < elbNodes[elbIP].CreatedAt {
-			elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
-		}
-		if elbNode.UpdatedAt > elbNodes[elbIP].UpdatedAt {
-			elbNodes[elbIP].UpdatedAt = elbNode.UpdatedAt
-		}
+		elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
+		elbNodes[elbIP].UpdatedAt = elbNode.UpdatedAt
 		elbNodes[elbIP].RequestCount += elbNode.RequestCount
 		elbNodes[elbIP].SentBytes += elbNode.SentBytes
 		elbNodes[elbIP].ReceivedBytes += elbNode.ReceivedBytes
