@@ -21,7 +21,6 @@ import (
 )
 
 var listenPort int
-var syncerPort int
 var idleTimeout int
 var cw ConnectionWatcher
 
@@ -43,16 +42,9 @@ func main() {
 			store.host.Name = getEC2MetaData("local-hostname")
 		}
 	}
-	syncer.Nodes[store.host.IP] = store.node
-
-	if syncerMode {
-		initSyncer()
-		go loopSyncer()
-	}
 
 	http.HandleFunc("/stop/", stopHandler)
 	http.HandleFunc("/exec/", execHandler)
-	http.HandleFunc("/syncer/", syncerHandler)
 	http.HandleFunc("/monitor/", monitorHandler)
 	http.HandleFunc("/elbstats/", elbStatsHandler)
 	http.HandleFunc("/", defaultHandler)
