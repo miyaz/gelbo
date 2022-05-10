@@ -118,23 +118,6 @@ func (ni *NodeInfo) addActiveConnsELB(remoteAddr string, cnt int64) {
 	ni.ELBs[remoteAddr].TotalConns += cnt
 }
 
-func elbStatsHandler(w http.ResponseWriter, r *http.Request) {
-	var rawFlg bool
-	qsMap := r.URL.Query()
-	for key := range qsMap {
-		if key == "raw" {
-			rawFlg = true
-			break
-		}
-	}
-	updateNode()
-	if rawFlg {
-		fmt.Fprintf(w, "\n%s\n", getStoreNodeELBJSON())
-	} else {
-		fmt.Fprintf(w, "\n%s\n", easeReadJSON(getStoreNodeELBJSON()))
-	}
-}
-
 func monitorHandler(w http.ResponseWriter, r *http.Request) {
 	var rawFlg bool
 	qsMap := r.URL.Query()
@@ -161,30 +144,6 @@ func updateNode() {
 // ELBNode ... temp struct for json.MarshalIndent
 type ELBNode struct {
 	ELBs map[string]*NodeInfo `json:"elbs"`
-}
-
-func getStoreNodeELBJSON() []byte {
-	store.RLock()
-	defer store.RUnlock()
-	elbNodes := map[string]*NodeInfo{}
-	for elbIP, elbNode := range store.node.ELBs {
-		if _, ok := elbNodes[elbIP]; !ok {
-			elbNodes[elbIP] = NewNodeInfo()
-		}
-		elbNodes[elbIP].CreatedAt = elbNode.CreatedAt
-		elbNodes[elbIP].UpdatedAt = elbNode.UpdatedAt
-		elbNodes[elbIP].RequestCount += elbNode.RequestCount
-		elbNodes[elbIP].SentBytes += elbNode.SentBytes
-		elbNodes[elbIP].ReceivedBytes += elbNode.ReceivedBytes
-		elbNodes[elbIP].ActiveConns += elbNode.ActiveConns
-		elbNodes[elbIP].TotalConns += elbNode.TotalConns
-	}
-	elbsJSON, err := json.MarshalIndent(ELBNode{ELBs: elbNodes}, "", "  ")
-	if err != nil {
-		fmt.Printf("failed to json.MarshalIndent: %v", err)
-		return []byte{}
-	}
-	return elbsJSON
 }
 
 func getStoreNodeJSON() []byte {
