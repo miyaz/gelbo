@@ -1,0 +1,22 @@
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "io.grpc.examples.simple";
+option java_outer_classname = "SimpleProto";
+option go_package = "./";
+
+package calc;
+
+service Calc {
+  rpc Sum (SumRequest) returns (SumReply) {}
+}
+
+message SumRequest {
+  int32 a = 1;
+  int32 b = 2;
+}
+
+message SumReply {
+  string message = 1;
+}

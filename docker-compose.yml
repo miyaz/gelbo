@@ -1,0 +1,13 @@
+version: "3.7"
+services:
+  go-grpc:
+    build:
+      context: .
+      dockerfile: Dockerfile-debug
+    container_name: "go-grpc"
+    volumes:
+      - ./:/go-grpc
+    ports:
+      - "127.0.0.1:50051:50051"
+    tty: true
+    privileged: true

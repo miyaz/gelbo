@@ -14,10 +14,8 @@ var (
 )
 
 func init() {
-	flag.IntVar(&listenPort, "listen", 80, "listen port")
 	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout")
 	flag.Parse()
-	fmt.Printf("Listen Port : %d\n", listenPort)
 	fmt.Printf("Idle Timeout: %d sec\n\n", idleTimeout)
 
 	if az := getEC2MetaData("availability-zone"); az != "" {

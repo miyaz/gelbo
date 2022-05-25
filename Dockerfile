@@ -3,11 +3,20 @@ FROM golang:1.18 as builder
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOARCH=amd64
-WORKDIR /go/src/work
+ENV GOPROXY direct
+
+# install protoc
+WORKDIR /protoc
+RUN apt update && apt-get install -y unzip
+RUN wget https://github.com/protocolbuffers/protobuf/releases/download/v3.20.1/protoc-3.20.1-linux-x86_64.zip && \
+    unzip protoc-3.20.1-linux-x86_64.zip && \
+    ln -s /protoc/bin/protoc /bin/protoc
+RUN go install github.com/golang/protobuf/protoc-gen-go@latest
 
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+RUN ./protoc.sh
 
 RUN go build -o /go/bin/gelbo -ldflags '-s -w'
 
@@ -16,5 +25,5 @@ FROM alpine as runner
 EXPOSE 80
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /go/bin/gelbo /app/gelbo
-
+COPY --from=builder /protoc/cert /cert
 ENTRYPOINT ["/app/gelbo"]

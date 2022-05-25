@@ -277,8 +277,12 @@ func combineValues(input map[string][]string) map[string]string {
 }
 
 func (reqInfo *RequestInfo) setIPAddresse(r *http.Request) {
-	conn, _ := conns.get(r.RemoteAddr)
-	reqInfo.TargetIP = extractIPAddress(conn.LocalAddr().String())
+	conn, ok := conns.get(r.RemoteAddr)
+	if ok {
+		reqInfo.TargetIP = extractIPAddress(conn.LocalAddr().String())
+	} else {
+		reqInfo.TargetIP = extractIPAddress(store.host.IP)
+	}
 	xff := splitXFF(r.Header.Get("X-Forwarded-For"))
 	if len(xff) == 1 {
 		reqInfo.Proxy1IP = extractIPAddress(r.RemoteAddr)
