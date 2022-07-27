@@ -313,6 +313,20 @@ func extractIPAddress(ipport string) string {
 	return ipaddr
 }
 
+func extractPort(ipport string) int {
+	var port string
+	if strings.HasPrefix(ipport, "[") {
+		port = strings.Join(strings.Split(ipport, ":")[len(strings.Split(ipport, ":"))-1:], ":")
+	} else {
+		port = strings.Split(ipport, ":")[1]
+	}
+	portNum, err := strconv.Atoi(port)
+	if err != nil {
+		portNum = 0
+	}
+	return portNum
+}
+
 func splitXFF(xffStr string) []string {
 	if xffStr == "" {
 		return []string{}

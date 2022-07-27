@@ -18,6 +18,9 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 )
 
 var listenPort int
@@ -25,6 +28,9 @@ var idleTimeout int
 var cw ConnectionWatcher
 
 func main() {
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	zerolog.TimeFieldFormat = time.RFC3339Nano
+
 	if runtime.GOOS == "linux" {
 		go cpuControl(store.resource.CPU.TargetChan)
 		go memoryControl(store.resource.Memory.TargetChan)
@@ -130,6 +136,9 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
+	reqtime := time.Now()
+	logger := zlog.With().Time("reqtime", reqtime).Logger()
+
 	queryStr, _ := url.QueryUnescape(r.URL.Query().Encode())
 	reqInfo := RequestInfo{
 		Method: r.Method,
@@ -161,14 +170,32 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	respInfo.Direction.Result = resultQs
 
 	reqSize, _ := io.Copy(ioutil.Discard, r.Body)
-	respSize := execAction(w, &respInfo)
+	respSize, statusCode := execAction(w, &respInfo)
 
 	store.node.reflectRequest(reqSize, respSize)
+	remotePort := extractPort(r.RemoteAddr)
 	remoteAddr := extractIPAddress(r.RemoteAddr)
 	remoteNodes.m[remoteAddr].reflectRequest(reqSize, respSize)
+
+	// request logging
+	restime := time.Now()
+	logger = logger.With().
+		Str("method", r.Method).
+		Str("path", r.URL.EscapedPath()).
+		Str("qstr", queryStr).
+		Str("clientip", reqInfo.ClientIP).
+		Str("srcip", remoteAddr).
+		Int("srcport", remotePort).
+		Int64("reqsize", reqSize).
+		Int64("size", respSize).
+		Int("status", statusCode).
+		Time("time", restime).
+		Int64("elapsed", restime.Sub(reqtime).Milliseconds()).
+		Logger()
+	logger.Info().Msg("")
 }
 
-func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
+func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
 	//respJSON, _ := json.MarshalIndent(*respInfo, "", "  ")
 	respJSON, _ := jsonMarshalIndent(*respInfo)
 	respSize := len(respJSON)
@@ -217,7 +244,7 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) int64 {
 	if err := writeResponse(w, respSize, respJSON); err != nil {
 		fmt.Println(err)
 	}
-	return int64(respSize)
+	return int64(respSize), statusCode
 }
 
 func arrayContains(arr []string, str string) bool {
