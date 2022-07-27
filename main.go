@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,28 +18,11 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-
-	"github.com/veqryn/h2c"
-	"golang.org/x/net/http2"
-	"google.golang.org/grpc/credentials"
 )
 
-var (
-	httpPort  int    = 80
-	httpsPort int    = 443
-	grpcPort  int    = 50051
-	grpcsPort int    = 50052
-	certFile  string = "cert/server-cert.pem"
-	keyFile   string = "cert/server-key.pem"
-)
-
+var listenPort int
 var idleTimeout int
 var cw ConnectionWatcher
-
-func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(r)
-	io.WriteString(w, "hello\n")
-}
 
 func main() {
 	if runtime.GOOS == "linux" {
@@ -61,61 +43,16 @@ func main() {
 		}
 	}
 
-	/*
-		http.HandleFunc("/stop/", stopHandler)
-		http.HandleFunc("/exec/", execHandler)
-		http.HandleFunc("/monitor/", monitorHandler)
-		http.HandleFunc("/", defaultHandler)
-	*/
-
-	router := http.NewServeMux()
-	router.HandleFunc("/stop/", stopHandler)
-	router.HandleFunc("/exec/", execHandler)
-	router.HandleFunc("/monitor/", monitorHandler)
-	router.HandleFunc("/", defaultHandler)
-	h2cWrapper := &h2c.HandlerH2C{
-		Handler:  router, // http.HandlerFunc(handler),
-		H2Server: &http2.Server{},
-	}
-
-	tlssrv := &http.Server{
-		Addr:        ":" + strconv.Itoa(httpsPort),
-		IdleTimeout: time.Duration(idleTimeout) * time.Second,
-		ConnState:   cw.OnStateChange,
-		Handler:     h2cWrapper,
-	}
-	http2.ConfigureServer(tlssrv, &http2.Server{})
-	go func() {
-		log.Fatalln(tlssrv.ListenAndServeTLS(certFile, keyFile))
-	}()
-
-	go func() {
-		if err := set(grpcPort); err != nil {
-			log.Fatalf("%v", err)
-		}
-	}()
-
+	http.HandleFunc("/stop/", stopHandler)
+	http.HandleFunc("/exec/", execHandler)
+	http.HandleFunc("/monitor/", monitorHandler)
+	http.HandleFunc("/", defaultHandler)
 	srv := &http.Server{
-		Addr:        ":" + strconv.Itoa(httpPort),
+		Addr:        ":" + strconv.Itoa(listenPort),
 		IdleTimeout: time.Duration(idleTimeout) * time.Second,
 		ConnState:   cw.OnStateChange,
-		Handler:     h2cWrapper,
 	}
-	http2.ConfigureServer(srv, &http2.Server{})
 	log.Fatalln(srv.ListenAndServe())
-
-}
-
-func loadTLSConfig() (credentials.TransportCredentials, error) {
-	serverCert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	config := &tls.Config{
-		Certificates: []tls.Certificate{serverCert},
-		ClientAuth:   tls.NoClientCert,
-	}
-	return credentials.NewTLS(config), nil
 }
 
 // ConnectionWatcher ... connection counter
