@@ -138,7 +138,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 		Header: combineValues(r.Header),
 	}
 	reqInfo.Header["Host"] = r.Host
-	reqInfo.setIPAddresse(r)
+	reqInfo.setIPAddress(r)
 	respInfo := ResponseInfo{
 		Host: *store.getHostInfo(),
 		Resource: ResourceInfo{
