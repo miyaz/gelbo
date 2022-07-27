@@ -20,16 +20,19 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	zlog "github.com/rs/zerolog/log"
 )
 
+var noLog bool
 var listenPort int
 var idleTimeout int
 var cw ConnectionWatcher
 
 func main() {
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	if noLog {
+		zerolog.SetGlobalLevel(zerolog.Disabled)
+	}
 	zerolog.TimeFieldFormat = time.RFC3339Nano
+	zerolog.DurationFieldInteger = true
 
 	if runtime.GOOS == "linux" {
 		go cpuControl(store.resource.CPU.TargetChan)
@@ -137,7 +140,7 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	reqtime := time.Now()
-	logger := zlog.With().Time("reqtime", reqtime).Logger()
+	logger := zerolog.New(os.Stdout).With().Time("reqtime", reqtime).Logger()
 
 	queryStr, _ := url.QueryUnescape(r.URL.Query().Encode())
 	reqInfo := RequestInfo{
@@ -190,7 +193,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 		Int64("size", respSize).
 		Int("status", statusCode).
 		Time("time", restime).
-		Int64("elapsed", restime.Sub(reqtime).Milliseconds()).
+		Dur("duration", restime.Sub(reqtime)).
 		Logger()
 	logger.Info().Msg("")
 }
@@ -277,7 +280,6 @@ func getIPAddress() string {
 	for _, address := range addrs {
 		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 			if ipnet.IP.To4() != nil {
-				fmt.Println("Current IP address : ", ipnet.IP.String())
 				currentIP = ipnet.IP.String()
 			}
 		}

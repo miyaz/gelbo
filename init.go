@@ -2,11 +2,13 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 var (
@@ -14,18 +16,21 @@ var (
 )
 
 func init() {
+	flag.BoolVar(&noLog, "nolog", false, "disable access logging")
 	flag.IntVar(&listenPort, "listen", 80, "listen port")
 	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout")
 	flag.Parse()
-	fmt.Printf("Listen Port : %d\n", listenPort)
-	fmt.Printf("Idle Timeout: %d sec\n\n", idleTimeout)
+	zlog := zerolog.New(os.Stderr).Level(zerolog.DebugLevel).With().
+		Int("listen", listenPort).
+		Int("timeout", idleTimeout).
+		Bool("nolog", noLog).Logger()
 
 	if az := getEC2MetaData("availability-zone"); az != "" {
-		fmt.Println("running on AWS")
+		zlog.Debug().Msg("running on AWS")
 		runOnAws = true
 		store.host.AZ = az
 	} else {
-		fmt.Println("detected running on non-AWS")
+		zlog.Debug().Msg("running on non-AWS")
 	}
 }
 
