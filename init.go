@@ -26,11 +26,11 @@ func init() {
 		Bool("nolog", noLog).Logger()
 
 	if az := getEC2MetaData("availability-zone"); az != "" {
-		zlog.Debug().Msg("running on AWS")
+		zlog.Log().Msg("running on AWS")
 		runOnAws = true
 		store.host.AZ = az
 	} else {
-		zlog.Debug().Msg("running on non-AWS")
+		zlog.Log().Msg("running on non-AWS")
 	}
 }
 

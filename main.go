@@ -195,7 +195,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 		Time("time", restime).
 		Dur("duration", restime.Sub(reqtime)).
 		Logger()
-	logger.Info().Msg("")
+	logger.Log().Msg("")
 }
 
 func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
