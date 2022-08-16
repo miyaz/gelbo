@@ -17,11 +17,10 @@ var (
 
 func init() {
 	flag.BoolVar(&noLog, "nolog", false, "disable access logging")
-	flag.IntVar(&listenPort, "listen", 80, "listen port")
-	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout")
+	flag.IntVar(&httpPort, "http", 80, "http port")
 	flag.Parse()
 	zlog := zerolog.New(os.Stderr).Level(zerolog.DebugLevel).With().
-		Int("listen", listenPort).
+		Int("http", httpPort).
 		Int("timeout", idleTimeout).
 		Bool("nolog", noLog).Logger()
 

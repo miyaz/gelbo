@@ -20,12 +20,15 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"golang.org/x/net/http2"
 )
 
-var noLog bool
-var listenPort int
-var idleTimeout int
-var cw ConnectionWatcher
+var (
+	httpPort    int
+	noLog       bool
+	idleTimeout int
+	cw          ConnectionWatcher
+)
 
 func main() {
 	if noLog {
@@ -52,16 +55,22 @@ func main() {
 		}
 	}
 
-	http.HandleFunc("/stop/", stopHandler)
-	http.HandleFunc("/exec/", execHandler)
-	http.HandleFunc("/monitor/", monitorHandler)
-	http.HandleFunc("/", defaultHandler)
-	srv := &http.Server{
-		Addr:        ":" + strconv.Itoa(listenPort),
+	router := http.NewServeMux()
+	router.HandleFunc("/stop/", stopHandler)
+	router.HandleFunc("/exec/", execHandler)
+	router.HandleFunc("/monitor/", monitorHandler)
+	router.HandleFunc("/", defaultHandler)
+	h2cWrapper := &HandlerH2C{
+		Handler:  router,
+		H2Server: &http2.Server{},
+	}
+	httpSrv := &http.Server{
+		Addr:        ":" + strconv.Itoa(httpPort),
 		IdleTimeout: time.Duration(idleTimeout) * time.Second,
 		ConnState:   cw.OnStateChange,
+		Handler:     h2cWrapper,
 	}
-	log.Fatalln(srv.ListenAndServe())
+	log.Fatalln(httpSrv.ListenAndServe())
 }
 
 // ConnectionWatcher ... connection counter
