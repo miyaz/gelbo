@@ -149,10 +149,12 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	reqtime := time.Now()
-	logger := zerolog.New(os.Stdout).With().Time("reqtime", reqtime).Logger()
+	proto, _ := r.Context().Value("proto").(string)
+	logger := zerolog.New(os.Stdout).With().Time("reqtime", reqtime).Str("proto", proto).Logger()
 
 	queryStr, _ := url.QueryUnescape(r.URL.Query().Encode())
 	reqInfo := RequestInfo{
+		Proto:  proto,
 		Method: r.Method,
 		Path:   r.URL.EscapedPath(),
 		Query:  queryStr,

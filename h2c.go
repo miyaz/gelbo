@@ -10,6 +10,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -54,6 +55,7 @@ type HandlerH2C struct {
 func (h *HandlerH2C) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// HTTP/2 With Prior Knowledge
 	if r.Method == "PRI" && r.URL.Path == "*" && r.ProtoMajor == 2 {
+		ctx := context.WithValue(r.Context(), "proto", "h2c")
 		conn, err := initH2CWithPriorKnowledge(w)
 		if err != nil {
 			log.Printf("Error h2c with prior knowledge: %v", err)
@@ -61,11 +63,14 @@ func (h *HandlerH2C) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		defer conn.Close()
 		h.H2Server.ServeConn(conn, &http2.ServeConnOpts{
-			Context: r.Context(),
+			Context: ctx,
 			Handler: h.Handler,
 		})
 		return
 	}
+
+	ctx := context.WithValue(r.Context(), "proto", "http")
+	r = r.WithContext(ctx)
 
 	h.Handler.ServeHTTP(w, r)
 }

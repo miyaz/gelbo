@@ -103,6 +103,7 @@ func (ru *ResourceUsage) setCurrent(value float64) {
 
 // RequestInfo ... information of request
 type RequestInfo struct {
+	Proto    string            `json:"protocol"`
 	Method   string            `json:"method"`
 	Path     string            `json:"path"`
 	Query    string            `json:"querystring,omitempty"`
