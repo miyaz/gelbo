@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -74,9 +75,10 @@ func main() {
 		IdleTimeout: time.Duration(idleTimeout) * time.Second,
 		ConnState:   cw.OnStateChange,
 		Handler:     h2cWrapper,
+		TLSConfig:   loadTLSConfig(),
 	}
 	go func() {
-		log.Fatalln(tlssrv.ListenAndServeTLS(certFile, keyFile))
+		log.Fatalln(tlssrv.ListenAndServeTLS("", ""))
 	}()
 
 	httpSrv := &http.Server{
@@ -274,6 +276,18 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
 		fmt.Println(err)
 	}
 	return int64(respSize), statusCode
+}
+
+func loadTLSConfig() *tls.Config {
+	serverCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	config := &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+		// ClientAuth:   tls.NoClientCert,
+	}
+	return config
 }
 
 func arrayContains(arr []string, str string) bool {
