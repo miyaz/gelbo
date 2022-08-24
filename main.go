@@ -20,6 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	_ "embed"
+
 	"github.com/rs/zerolog"
 	"golang.org/x/net/http2"
 )
@@ -31,8 +33,10 @@ var (
 	idleTimeout int
 	cw          ConnectionWatcher
 
-	certFile string = "cert/server-cert.pem"
-	keyFile  string = "cert/server-key.pem"
+	//go:embed cert/server-cert.pem
+	certData []byte
+	//go:embed cert/server-key.pem
+	keyData []byte
 )
 
 func main() {
@@ -279,13 +283,12 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
 }
 
 func loadTLSConfig() *tls.Config {
-	serverCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	serverCert, err := tls.X509KeyPair(certData, keyData)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	config := &tls.Config{
 		Certificates: []tls.Certificate{serverCert},
-		// ClientAuth:   tls.NoClientCert,
 	}
 	return config
 }

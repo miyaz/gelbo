@@ -10,7 +10,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 
-RUN mkdir cert \
+RUN mkdir -p cert \
  && openssl req -x509 -nodes -newkey rsa:2048 -days 3650 -keyout cert/server-key.pem -out cert/server-cert.pem -subj "/CN=localhost"
 RUN go build -o /go/bin/gelbo -ldflags '-s -w'
 
