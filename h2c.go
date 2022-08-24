@@ -54,8 +54,9 @@ type HandlerH2C struct {
 // The request will be handled by the wrapped `Handler` in any case.
 func (h *HandlerH2C) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// HTTP/2 With Prior Knowledge
+	ctx := context.WithValue(r.Context(), "proto", "http")
 	if r.Method == "PRI" && r.URL.Path == "*" && r.ProtoMajor == 2 {
-		ctx := context.WithValue(r.Context(), "proto", "h2c")
+		ctx = context.WithValue(r.Context(), "proto", "h2c")
 		conn, err := initH2CWithPriorKnowledge(w)
 		if err != nil {
 			log.Printf("Error h2c with prior knowledge: %v", err)
@@ -67,11 +68,17 @@ func (h *HandlerH2C) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Handler: h.Handler,
 		})
 		return
+	} else if r.TLS != nil {
+		if r.ProtoMajor == 1 {
+			ctx = context.WithValue(r.Context(), "proto", "https")
+		} else if r.ProtoMajor == 2 {
+			ctx = context.WithValue(r.Context(), "proto", "h2")
+		} else {
+			ctx = context.WithValue(r.Context(), "proto", "unknown")
+		}
 	}
 
-	ctx := context.WithValue(r.Context(), "proto", "http")
 	r = r.WithContext(ctx)
-
 	h.Handler.ServeHTTP(w, r)
 }
 

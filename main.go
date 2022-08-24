@@ -25,9 +25,13 @@ import (
 
 var (
 	httpPort    int
+	httpsPort   int
 	noLog       bool
 	idleTimeout int
 	cw          ConnectionWatcher
+
+	certFile string = "cert/server-cert.pem"
+	keyFile  string = "cert/server-key.pem"
 )
 
 func main() {
@@ -64,6 +68,17 @@ func main() {
 		Handler:  router,
 		H2Server: &http2.Server{},
 	}
+
+	tlssrv := &http.Server{
+		Addr:        ":" + strconv.Itoa(httpsPort),
+		IdleTimeout: time.Duration(idleTimeout) * time.Second,
+		ConnState:   cw.OnStateChange,
+		Handler:     h2cWrapper,
+	}
+	go func() {
+		log.Fatalln(tlssrv.ListenAndServeTLS(certFile, keyFile))
+	}()
+
 	httpSrv := &http.Server{
 		Addr:        ":" + strconv.Itoa(httpPort),
 		IdleTimeout: time.Duration(idleTimeout) * time.Second,

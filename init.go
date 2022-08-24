@@ -18,10 +18,12 @@ var (
 func init() {
 	flag.BoolVar(&noLog, "nolog", false, "disable access logging")
 	flag.IntVar(&httpPort, "http", 80, "http port")
+	flag.IntVar(&httpsPort, "https", 443, "https port")
 	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout")
 	flag.Parse()
 	zlog := zerolog.New(os.Stderr).Level(zerolog.DebugLevel).With().
 		Int("http", httpPort).
+		Int("https", httpsPort).
 		Int("timeout", idleTimeout).
 		Bool("nolog", noLog).Logger()
 
