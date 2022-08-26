@@ -103,15 +103,17 @@ func (ru *ResourceUsage) setCurrent(value float64) {
 
 // RequestInfo ... information of request
 type RequestInfo struct {
-	Proto    string            `json:"protocol"`
-	Method   string            `json:"method"`
-	Path     string            `json:"path"`
-	Query    string            `json:"querystring,omitempty"`
-	Header   map[string]string `json:"header"`
-	ClientIP string            `json:"clientip"`
-	Proxy1IP string            `json:"proxy1ip,omitempty"`
-	Proxy2IP string            `json:"proxy2ip,omitempty"`
-	TargetIP string            `json:"targetip"`
+	Proto     string            `json:"protocol"`
+	Method    string            `json:"method"`
+	Path      string            `json:"path"`
+	Query     string            `json:"querystring,omitempty"`
+	Header    map[string]string `json:"header"`
+	ClientIP  string            `json:"clientip"`
+	Proxy1IP  string            `json:"proxy1ip,omitempty"`
+	Proxy2IP  string            `json:"proxy2ip,omitempty"`
+	Proxy3IP  string            `json:"proxy3ip,omitempty"`
+	LastHopIP string            `json:"lasthopip,omitempty"`
+	TargetIP  string            `json:"targetip"`
 }
 
 // Direction ... information of directions
@@ -285,21 +287,24 @@ func (reqInfo *RequestInfo) setIPAddress(r *http.Request) {
 		reqInfo.TargetIP = extractIPAddress(store.host.IP)
 	}
 	xff := splitXFF(r.Header.Get("X-Forwarded-For"))
-	if len(xff) == 1 {
-		reqInfo.Proxy1IP = extractIPAddress(r.RemoteAddr)
-	}
 	if len(xff) >= 2 {
 		reqInfo.Proxy1IP = xff[1]
-		reqInfo.Proxy2IP = extractIPAddress(r.RemoteAddr)
+	}
+	if len(xff) >= 3 {
+		reqInfo.Proxy2IP = xff[2]
+	}
+	if len(xff) >= 4 {
+		reqInfo.Proxy3IP = xff[3]
 	}
 	if len(xff) == 0 {
 		reqInfo.ClientIP = extractIPAddress(r.RemoteAddr)
 	} else {
 		reqInfo.ClientIP = xff[0]
+		reqInfo.LastHopIP = extractIPAddress(r.RemoteAddr)
 		// use elb
 		store.node.Lock()
 		defer store.node.Unlock()
-		store.node.ELBs[reqInfo.Proxy1IP] = remoteNodes.m[reqInfo.Proxy1IP]
+		store.node.ELBs[reqInfo.LastHopIP] = remoteNodes.m[reqInfo.LastHopIP]
 	}
 }
 
