@@ -80,6 +80,7 @@ func main() {
 		ConnState:   cw.OnStateChange,
 		Handler:     h2cWrapper,
 		TLSConfig:   loadTLSConfig(),
+		ErrorLog:    log.New(ioutil.Discard, "", 0),
 	}
 	go func() {
 		log.Fatalln(tlssrv.ListenAndServeTLS("", ""))
@@ -90,6 +91,7 @@ func main() {
 		IdleTimeout: time.Duration(idleTimeout) * time.Second,
 		ConnState:   cw.OnStateChange,
 		Handler:     h2cWrapper,
+		ErrorLog:    log.New(ioutil.Discard, "", 0),
 	}
 	log.Fatalln(httpSrv.ListenAndServe())
 }
