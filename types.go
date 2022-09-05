@@ -148,6 +148,8 @@ type QueryString struct {
 	IfClientIP  string `json:"ifclientip,omitempty"`
 	IfProxy1IP  string `json:"ifproxy1ip,omitempty"`
 	IfProxy2IP  string `json:"ifproxy2ip,omitempty"`
+	IfProxy3IP  string `json:"ifproxy3ip,omitempty"`
+	IfLasthopIP string `json:"iflasthopip,omitempty"`
 	IfTargetIP  string `json:"iftargetip,omitempty"`
 	IfHostIP    string `json:"ifhostip,omitempty"`
 	IfHost      string `json:"ifhost,omitempty"`
@@ -204,6 +206,10 @@ func (qs *QueryString) setValue(key, value string) {
 		qs.IfProxy1IP = value
 	case "ifproxy2ip":
 		qs.IfProxy2IP = value
+	case "ifproxy3ip":
+		qs.IfProxy3IP = value
+	case "iflasthopip":
+		qs.IfLasthopIP = value
 	case "iftargetip":
 		qs.IfTargetIP = value
 	case "ifhostip":
@@ -244,6 +250,8 @@ func newValidator() map[string]*regexp.Regexp {
 	validator["iftargetip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
 	validator["ifproxy1ip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
 	validator["ifproxy2ip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
+	validator["ifproxy3ip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
+	validator["iflasthopip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
 	validator["ifclientip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
 	return validator
 }
@@ -404,6 +412,10 @@ func (reqInfo *RequestInfo) getActualValue(key string) (ret string) {
 		ret = reqInfo.Proxy1IP
 	case "ifproxy2ip":
 		ret = reqInfo.Proxy2IP
+	case "ifproxy3ip":
+		ret = reqInfo.Proxy3IP
+	case "iflasthopip":
+		ret = reqInfo.LastHopIP
 	case "iftargetip":
 		ret = reqInfo.TargetIP
 	case "ifhostip":
