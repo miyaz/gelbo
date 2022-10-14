@@ -45,9 +45,10 @@ func (ds *DataStore) getHostInfo() *HostInfo {
 
 // HostInfo ... information of host
 type HostInfo struct {
-	Name string `json:"name"`
-	IP   string `json:"ip"`
-	AZ   string `json:"az,omitempty"`
+	Name         string `json:"name"`
+	IP           string `json:"ip"`
+	AZ           string `json:"az,omitempty"`
+	InstanceType string `json:"type,omitempty"`
 }
 
 // ResourceInfo ... information of os resource

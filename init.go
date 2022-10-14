@@ -31,6 +31,7 @@ func init() {
 		zlog.Log().Msg("running on AWS")
 		runOnAws = true
 		store.host.AZ = az
+		store.host.InstanceType = getEC2MetaData("instance-type")
 	} else {
 		zlog.Log().Msg("running on non-AWS")
 	}
