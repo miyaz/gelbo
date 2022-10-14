@@ -155,6 +155,7 @@ type QueryString struct {
 	IfHostIP    string `json:"ifhostip,omitempty"`
 	IfHost      string `json:"ifhost,omitempty"`
 	IfAZ        string `json:"ifaz,omitempty"`
+	IfType      string `json:"iftype,omitempty"`
 }
 
 func (qs *QueryString) getValue(key string) (ret string) {
@@ -219,21 +220,24 @@ func (qs *QueryString) setValue(key, value string) {
 		qs.IfHost = value
 	case "ifaz":
 		qs.IfAZ = value
+	case "iftype":
+		qs.IfType = value
 	}
 }
 
 func newValidator() map[string]*regexp.Regexp {
 	const (
-		regexpPercent    = "^(100|[0-9]{1,2})$"
-		regexpNumRange   = "^([0-9]+)(?:-([0-9]+))?$"
-		regexpHeader     = "^([a-zA-Z0-9-]+): .+$"
-		regexpHeaderName = "^([a-zA-Z0-9-]+)$"
-		regexpStatus     = "^([2-5][0-9]{2})$"
-		regexpHostname   = "^([a-zA-Z0-9-.]+)$"
-		regexpAZone      = "^([a-z]{2}-[a-z]+-[1-9][a-d])$"
-		regexpIPv4       = "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-		regexpIPv6       = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
-		regexpAll        = "^(.*)$"
+		regexpPercent      = "^(100|[0-9]{1,2})$"
+		regexpNumRange     = "^([0-9]+)(?:-([0-9]+))?$"
+		regexpHeader       = "^([a-zA-Z0-9-]+): .+$"
+		regexpHeaderName   = "^([a-zA-Z0-9-]+)$"
+		regexpStatus       = "^([2-5][0-9]{2})$"
+		regexpHostname     = "^([a-zA-Z0-9-.]+)$"
+		regexpAZone        = "^([a-z]{2}-[a-z]+-[1-9][a-d])$"
+		regexpInstanceType = "^(([a-z0-9]+)\\.([a-z0-9]+))$"
+		regexpIPv4         = "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+		regexpIPv6         = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
+		regexpAll          = "^(.*)$"
 	)
 	validator := map[string]*regexp.Regexp{}
 	validator["cpu"] = regexp.MustCompile(regexpPercent)
@@ -247,6 +251,7 @@ func newValidator() map[string]*regexp.Regexp {
 	validator["stderr"] = regexp.MustCompile(regexpAll)
 	validator["ifhost"] = regexp.MustCompile(regexpHostname)
 	validator["ifaz"] = regexp.MustCompile(regexpAZone)
+	validator["iftype"] = regexp.MustCompile(regexpInstanceType)
 	validator["ifhostip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
 	validator["iftargetip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
 	validator["ifproxy1ip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
@@ -425,6 +430,8 @@ func (reqInfo *RequestInfo) getActualValue(key string) (ret string) {
 		ret = store.host.Name
 	case "ifaz":
 		ret = store.host.AZ
+	case "iftype":
+		ret = store.host.InstanceType
 	}
 	return
 }
