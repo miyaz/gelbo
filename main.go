@@ -67,6 +67,7 @@ func main() {
 	router := http.NewServeMux()
 	router.HandleFunc("/stop/", stopHandler)
 	router.HandleFunc("/exec/", execHandler)
+	router.HandleFunc("/env/", envHandler)
 	router.HandleFunc("/monitor/", monitorHandler)
 	router.HandleFunc("/", defaultHandler)
 	h2cWrapper := &HandlerH2C{
@@ -162,6 +163,18 @@ func execHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "%v\n", err)
 			}
 			fmt.Fprintf(w, "%s\n", string(out))
+		}
+	}
+}
+
+func envHandler(w http.ResponseWriter, r *http.Request) {
+	qsMap := r.URL.Query()
+	for key, values := range qsMap {
+		if key != "key" {
+			continue
+		}
+		for _, value := range values {
+			fmt.Fprintf(w, "%s\n", os.Getenv(value))
 		}
 	}
 }
