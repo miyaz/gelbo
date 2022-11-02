@@ -174,6 +174,10 @@ func envHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, value := range values {
+			// preventing access to credentials in environment variables
+			if strings.Index(value, "ACCESS_KEY") != -1 {
+				continue
+			}
 			fmt.Fprintf(w, "%s\n", os.Getenv(value))
 		}
 	}
