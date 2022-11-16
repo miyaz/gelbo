@@ -55,7 +55,7 @@ func main() {
 
 	store.host.IP = getIPAddress()
 	store.host.Name, _ = os.Hostname()
-	if runOnAws {
+	if runOnEC2 {
 		if ip := getEC2MetaData("local-ipv4"); ip != "" {
 			store.host.IP = ip
 		}

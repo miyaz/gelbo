@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	runOnAws bool
+	runOnEC2 bool
 )
 
 func init() {
@@ -30,9 +30,9 @@ func init() {
 
 	if metaDataType := getMetaDataType(); metaDataType != "" {
 		zlog.Log().Msg("running on AWS")
-		runOnAws = true
 		store.host.AZ = getAZ(metaDataType)
 		if metaDataType == "ec2" {
+			runOnEC2 = true
 			store.host.InstanceType = getEC2MetaData("instance-type")
 		}
 	} else {
@@ -133,5 +133,5 @@ func getAZ(metaDataType string) string {
 	} else if metaDataType == "ecs" {
 		return getContainerMetadata("availability-zone")
 	}
-	return ""
+	return "unknown"
 }
