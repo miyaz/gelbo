@@ -56,13 +56,42 @@ func getMetaDataType() string {
 	return ""
 }
 
+func getMetaDataToken() string {
+	url := "http://169.254.169.254/latest/api/token"
+	client := http.Client{
+		Timeout: time.Second,
+	}
+	req, err := http.NewRequest("PUT", url, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("X-aws-ec2-metadata-token-ttl-seconds", "21600")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+	return string(body)
+}
+
 func getFromIMDS(path string) (data string) {
 	// can not access imds from docker container when use aws-sdk-go/aws/ec2metadata
 	addr := "http://169.254.169.254/latest/meta-data"
 	client := http.Client{
 		Timeout: time.Second,
 	}
-	resp, err := client.Get(addr + path)
+	req, err := http.NewRequest("GET", addr+path, nil)
+	if err != nil {
+		return ""
+	}
+	if token := getMetaDataToken(); token != "" {
+		req.Header.Set("X-aws-ec2-metadata-token", token)
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return ""
 	}
@@ -96,7 +125,7 @@ func getEC2MetaData(field string) (value string) {
 	return
 }
 
-// for unmarshal from {ECS_CONTAINER_METADATA_URI_V4}/task
+// MetadataTask ... for unmarshal from {ECS_CONTAINER_METADATA_URI_V4}/task
 type MetadataTask struct {
 	//Cluster          string
 	//TaskARN          string
