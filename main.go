@@ -22,6 +22,7 @@ import (
 
 	_ "embed"
 
+	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/rs/zerolog"
 	"golang.org/x/net/http2"
 )
@@ -38,6 +39,30 @@ var (
 	//go:embed cert/server-key.pem
 	keyData []byte
 )
+
+type PPWrapListenAndServeProps struct {
+	Srv    *http.Server
+	UseTls bool
+}
+
+func PPWrapListenAndServe(props *PPWrapListenAndServeProps) error {
+	ln, err := net.Listen("tcp", props.Srv.Addr)
+	if err != nil {
+		panic(err)
+	}
+
+	proxyListener := &proxyproto.Listener{
+		Listener:          ln,
+		ReadHeaderTimeout: -1,
+	}
+	defer proxyListener.Close()
+
+	if props.UseTls == true {
+		return props.Srv.ServeTLS(proxyListener, "", "")
+	} else {
+		return props.Srv.Serve(proxyListener)
+	}
+}
 
 func main() {
 	if noLog {
@@ -84,7 +109,12 @@ func main() {
 		ErrorLog:    log.New(ioutil.Discard, "", 0),
 	}
 	go func() {
-		log.Fatalln(tlssrv.ListenAndServeTLS("", ""))
+		log.Fatalln(
+			PPWrapListenAndServe(&PPWrapListenAndServeProps{
+				Srv:    tlssrv,
+				UseTls: true,
+			}),
+		)
 	}()
 
 	httpSrv := &http.Server{
@@ -94,7 +124,12 @@ func main() {
 		Handler:     h2cWrapper,
 		ErrorLog:    log.New(ioutil.Discard, "", 0),
 	}
-	log.Fatalln(httpSrv.ListenAndServe())
+	log.Fatalln(
+		PPWrapListenAndServe(&PPWrapListenAndServeProps{
+			Srv:    httpSrv,
+			UseTls: false,
+		}),
+	)
 }
 
 // ConnectionWatcher ... connection counter
