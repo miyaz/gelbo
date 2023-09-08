@@ -40,11 +40,13 @@ var (
 	keyData []byte
 )
 
+// PPWrapListenAndServeProps ... ListenAndServeProps for Proxy Protocol
 type PPWrapListenAndServeProps struct {
 	Srv    *http.Server
-	UseTls bool
+	UseTLS bool
 }
 
+// PPWrapListenAndServe ... ListenAndServeWrapper for Proxy Protocol
 func PPWrapListenAndServe(props *PPWrapListenAndServeProps) error {
 	ln, err := net.Listen("tcp", props.Srv.Addr)
 	if err != nil {
@@ -57,11 +59,10 @@ func PPWrapListenAndServe(props *PPWrapListenAndServeProps) error {
 	}
 	defer proxyListener.Close()
 
-	if props.UseTls == true {
+	if props.UseTLS == true {
 		return props.Srv.ServeTLS(proxyListener, "", "")
-	} else {
-		return props.Srv.Serve(proxyListener)
 	}
+	return props.Srv.Serve(proxyListener)
 }
 
 func main() {
@@ -112,7 +113,7 @@ func main() {
 		log.Fatalln(
 			PPWrapListenAndServe(&PPWrapListenAndServeProps{
 				Srv:    tlssrv,
-				UseTls: true,
+				UseTLS: true,
 			}),
 		)
 	}()
@@ -127,7 +128,7 @@ func main() {
 	log.Fatalln(
 		PPWrapListenAndServe(&PPWrapListenAndServeProps{
 			Srv:    httpSrv,
-			UseTls: false,
+			UseTLS: false,
 		}),
 	)
 }
