@@ -1,11 +1,11 @@
 module github.com/miyaz/gelbo
 
-go 1.21
+go 1.20
 
 require (
 	github.com/pires/go-proxyproto v0.7.0
 	github.com/rs/zerolog v1.31.0
-	golang.org/x/net v0.16.0
+	golang.org/x/net v0.17.0
 )
 
 require (
