@@ -302,18 +302,18 @@ func (reqInfo *RequestInfo) setIPAddress(r *http.Request) {
 	}
 	xff := splitXFF(r.Header.Get("X-Forwarded-For"))
 	if len(xff) >= 2 {
-		reqInfo.Proxy1IP = xff[1]
+		reqInfo.Proxy1IP = extractIPAddress(xff[1])
 	}
 	if len(xff) >= 3 {
-		reqInfo.Proxy2IP = xff[2]
+		reqInfo.Proxy2IP = extractIPAddress(xff[2])
 	}
 	if len(xff) >= 4 {
-		reqInfo.Proxy3IP = xff[3]
+		reqInfo.Proxy3IP = extractIPAddress(xff[3])
 	}
 	if len(xff) == 0 {
 		reqInfo.ClientIP = extractIPAddress(r.RemoteAddr)
 	} else {
-		reqInfo.ClientIP = xff[0]
+		reqInfo.ClientIP = extractIPAddress(xff[0])
 		reqInfo.LastHopIP = extractIPAddress(r.RemoteAddr)
 		// use elb
 		store.node.Lock()
@@ -324,21 +324,33 @@ func (reqInfo *RequestInfo) setIPAddress(r *http.Request) {
 
 func extractIPAddress(ipport string) string {
 	var ipaddr string
-	if strings.HasPrefix(ipport, "[") {
-		ipaddr = strings.Join(strings.Split(ipport, ":")[:len(strings.Split(ipport, ":"))-1], ":")
+	if len(strings.Split(ipport, ":")) > 2 { // ipv6
+		portExists := 0
+		if strings.HasPrefix(ipport, "[") && !strings.HasSuffix(ipport, "]") {
+			portExists = 1
+		}
+		ipaddr = strings.Join(strings.Split(ipport, ":")[:len(strings.Split(ipport, ":"))-portExists], ":")
 		ipaddr = strings.Trim(ipaddr, "[]")
-	} else {
-		ipaddr = strings.Split(ipport, ":")[0]
+	} else { // ipv4
+		if strings.Index(ipport, ":") != -1 {
+			ipaddr = strings.Split(ipport, ":")[0]
+		} else {
+			ipaddr = ipport
+		}
 	}
 	return ipaddr
 }
 
 func extractPort(ipport string) int {
 	var port string
-	if strings.HasPrefix(ipport, "[") {
-		port = strings.Join(strings.Split(ipport, ":")[len(strings.Split(ipport, ":"))-1:], ":")
-	} else {
-		port = strings.Split(ipport, ":")[1]
+	if len(strings.Split(ipport, ":")) > 2 { // ipv6
+		if strings.HasPrefix(ipport, "[") && !strings.HasSuffix(ipport, "]") {
+			port = strings.Join(strings.Split(ipport, ":")[len(strings.Split(ipport, ":"))-1:], ":")
+		}
+	} else { // ipv4
+		if strings.Index(ipport, ":") != -1 {
+			port = strings.Split(ipport, ":")[1]
+		}
 	}
 	portNum, err := strconv.Atoi(port)
 	if err != nil {
