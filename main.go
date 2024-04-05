@@ -31,6 +31,7 @@ var (
 	httpPort    int
 	httpsPort   int
 	noLog       bool
+	proxy       bool
 	idleTimeout int
 	cw          ConnectionWatcher
 
@@ -110,12 +111,16 @@ func main() {
 		ErrorLog:    log.New(ioutil.Discard, "", 0),
 	}
 	go func() {
-		log.Fatalln(
-			PPWrapListenAndServe(&PPWrapListenAndServeProps{
+		var err error
+		if proxy {
+			err = PPWrapListenAndServe(&PPWrapListenAndServeProps{
 				Srv:    tlssrv,
 				UseTLS: true,
-			}),
-		)
+			})
+		} else {
+			err = tlssrv.ListenAndServeTLS("", "")
+		}
+		log.Fatalln(err)
 	}()
 
 	httpSrv := &http.Server{
@@ -125,12 +130,16 @@ func main() {
 		Handler:     h2cWrapper,
 		ErrorLog:    log.New(ioutil.Discard, "", 0),
 	}
-	log.Fatalln(
-		PPWrapListenAndServe(&PPWrapListenAndServeProps{
+	var err error
+	if proxy {
+		err = PPWrapListenAndServe(&PPWrapListenAndServeProps{
 			Srv:    httpSrv,
 			UseTLS: false,
-		}),
-	)
+		})
+	} else {
+		err = httpSrv.ListenAndServe()
+	}
+	log.Fatalln(err)
 }
 
 // ConnectionWatcher ... connection counter

@@ -14,18 +14,21 @@ import (
 
 var (
 	runOnEC2 bool
+	hub      *Hub
 )
 
 func init() {
-	flag.BoolVar(&noLog, "nolog", false, "disable access logging")
 	flag.IntVar(&httpPort, "http", 80, "http port")
 	flag.IntVar(&httpsPort, "https", 443, "https port")
 	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout")
+	flag.BoolVar(&proxy, "proxy", false, "enable proxy protocol")
+	flag.BoolVar(&noLog, "nolog", false, "disable access logging")
 	flag.Parse()
 	zlog := zerolog.New(os.Stderr).Level(zerolog.DebugLevel).With().
 		Int("http", httpPort).
 		Int("https", httpsPort).
 		Int("timeout", idleTimeout).
+		Bool("proxy", proxy).
 		Bool("nolog", noLog).Logger()
 
 	if metaDataType := getMetaDataType(); metaDataType != "" {
