@@ -91,10 +91,13 @@ func main() {
 		}
 	}
 
+	go hub.run()
 	router := http.NewServeMux()
 	router.HandleFunc("/stop/", stopHandler)
 	router.HandleFunc("/exec/", execHandler)
 	router.HandleFunc("/env/", envHandler)
+	router.HandleFunc("/chat/", chatPageHandler)
+	router.HandleFunc("/ws/", wsHandler)
 	router.HandleFunc("/monitor/", monitorHandler)
 	router.HandleFunc("/", defaultHandler)
 	h2cWrapper := &HandlerH2C{

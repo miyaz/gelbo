@@ -14,6 +14,7 @@ import (
 
 var (
 	runOnEC2 bool
+	hub      *Hub
 )
 
 func init() {
@@ -40,6 +41,7 @@ func init() {
 	} else {
 		zlog.Log().Msg("running on non-AWS")
 	}
+	hub = newHub()
 }
 
 func getMetaDataType() string {
