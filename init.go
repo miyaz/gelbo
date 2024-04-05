@@ -14,7 +14,6 @@ import (
 
 var (
 	runOnEC2 bool
-	hub      *Hub
 )
 
 func init() {
