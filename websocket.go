@@ -72,6 +72,7 @@ const page = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <title>Gelbo Chat</title>
+<link rel="icon" href="data:,">
 <script>
 window.onload = () => {
     let conn;
@@ -101,7 +102,7 @@ window.onload = () => {
 
     if (window["WebSocket"]) {
         const schema = location.protocol.indexOf('https') !== -1 ? 'wss' : 'ws';
-        conn = new WebSocket(schema + "://" + document.location.host + "/ws/");
+        conn = new WebSocket(schema + "://" + location.host + "/ws/");
         conn.onopen = function (evt) {
             const item = document.createElement("div");
             item.innerHTML = "<b>Open: " + JSON.stringify(evt) + "</b>";
@@ -188,6 +189,7 @@ func chatPageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	fmt.Printf("chat RemoteAddr: %v\n", r.RemoteAddr)
 
 	//http.ServeFile(w, r, "websocket.html")
 	w.Header().Set("Content-Type", "text/html")
@@ -201,7 +203,7 @@ const (
 
 	// Send pings to peer with this period. Must be less than pongWait.
 	//pingPeriod = (pongWait * 9) / 10
-	pingPeriod = 60 * time.Second
+	pingPeriod = 10 * time.Second
 
 	// Time allowed to read the next pong message from the peer.
 	//pongWait = 60 * time.Second
@@ -248,13 +250,15 @@ func (c *Client) readPump() {
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
+			log.Printf("c.conn.ReadMessage error: %v", err)
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				log.Printf("websocket.IsUnexpectedCloseError error: %v", err)
 			}
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		c.hub.broadcast <- message
+		fmt.Printf("RemoteAddr: %v, LocalAddr: %v, msg: %v\n", c.conn.RemoteAddr(), c.conn.LocalAddr(), message)
 	}
 }
 
@@ -272,8 +276,10 @@ func (c *Client) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
+			log.Printf("msg  RemoteAddr: %v", c.conn.RemoteAddr())
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
+				log.Println("get message from c.send not ok")
 				// The hub closed the channel.
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
@@ -281,6 +287,7 @@ func (c *Client) writePump() {
 
 			w, err := c.conn.NextWriter(websocket.TextMessage)
 			if err != nil {
+				log.Printf("c.send triggered c.conn.NextWriter error: %v", err)
 				return
 			}
 			w.Write(message)
@@ -293,11 +300,14 @@ func (c *Client) writePump() {
 			}
 
 			if err := w.Close(); err != nil {
+				log.Printf("c.send triggered w.Close error: %v", err)
 				return
 			}
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+			log.Printf("ping RemoteAddr: %v", c.conn.RemoteAddr())
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				log.Printf("ticker triggered c.conn.WriteMessage error: %v", err)
 				return
 			}
 		}
@@ -309,7 +319,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println(err)
+		log.Printf("upgrader.Upgrade error: %v", err)
 		return
 	}
 	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
