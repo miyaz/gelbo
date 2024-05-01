@@ -77,7 +77,7 @@ func main() {
 		go memoryControl(store.resource.Memory.TargetChan)
 	}
 
-	rand.Seed(time.Now().UnixNano())
+	rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	store.host.IP = getIPAddress()
 	store.host.Name, _ = os.Hostname()
