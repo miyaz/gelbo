@@ -4,8 +4,8 @@
 // available from net/http.
 //
 // refs:
-//   * https://github.com/veqryn/h2c
-//   * https://cs.opensource.google/go/x/net/+/internal-branch.go1.19-vendor:http2/h2c/h2c.go
+//   - https://github.com/veqryn/h2c
+//   - https://cs.opensource.google/go/x/net/+/internal-branch.go1.19-vendor:http2/h2c/h2c.go
 package main
 
 import (
@@ -26,25 +26,26 @@ var _ http.Handler = &HandlerH2C{}
 
 // HandlerH2C implements http.Handler and enables h2c.
 // Users who want h2c just need to provide a http.Handler to wrap, and an http2.Server.
-// 	Example:
 //
-// 	router := http.NewServeMux()
+//	Example:
 //
-// 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-// 		fmt.Fprint(w, "Hello World")
-// 	})
+//	router := http.NewServeMux()
 //
-// 	h2cWrapper := &h2c.HandlerH2C{
-// 		Handler:  router,
-// 		H2Server: &http2.Server{},
-// 	}
+//	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+//		fmt.Fprint(w, "Hello World")
+//	})
 //
-// 	srv := http.Server{
-// 		Addr:    ":8080",
-// 		Handler: h2cWrapper,
-// 	}
+//	h2cWrapper := &h2c.HandlerH2C{
+//		Handler:  router,
+//		H2Server: &http2.Server{},
+//	}
 //
-// 	srv.ListenAndServe()
+//	srv := http.Server{
+//		Addr:    ":8080",
+//		Handler: h2cWrapper,
+//	}
+//
+//	srv.ListenAndServe()
 type HandlerH2C struct {
 	Handler  http.Handler
 	H2Server *http2.Server
