@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -75,7 +75,7 @@ func getMetaDataToken() string {
 	if err != nil {
 		return ""
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return ""
 	}
@@ -99,7 +99,7 @@ func getFromIMDS(path string) (data string) {
 	if err != nil {
 		return ""
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return ""
 	}
@@ -148,7 +148,7 @@ func getContainerMetadata(field string) string {
 	if err != nil {
 		return ""
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return ""
 	}

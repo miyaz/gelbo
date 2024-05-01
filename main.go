@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"net"
@@ -111,7 +110,7 @@ func main() {
 		ConnState:   cw.OnStateChange,
 		Handler:     h2cWrapper,
 		TLSConfig:   loadTLSConfig(),
-		ErrorLog:    log.New(ioutil.Discard, "", 0),
+		ErrorLog:    log.New(io.Discard, "", 0),
 	}
 	go func() {
 		var err error
@@ -131,7 +130,7 @@ func main() {
 		IdleTimeout: time.Duration(idleTimeout) * time.Second,
 		ConnState:   cw.OnStateChange,
 		Handler:     h2cWrapper,
-		ErrorLog:    log.New(ioutil.Discard, "", 0),
+		ErrorLog:    log.New(io.Discard, "", 0),
 	}
 	var err error
 	if proxy {
@@ -271,7 +270,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	respInfo.Direction.Input = inputQs
 	respInfo.Direction.Result = resultQs
 
-	reqSize, _ := io.Copy(ioutil.Discard, r.Body)
+	reqSize, _ := io.Copy(io.Discard, r.Body)
 	respSize, statusCode := execAction(w, &respInfo)
 
 	store.node.reflectRequest(reqSize, respSize)
