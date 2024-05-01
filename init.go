@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -14,20 +15,27 @@ import (
 
 var (
 	runOnEC2 bool
-	hub      *Hub
 )
 
 func init() {
 	flag.IntVar(&httpPort, "http", 80, "http port")
 	flag.IntVar(&httpsPort, "https", 443, "https port")
 	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout")
+	flag.Int64Var(&pingInterval, "wsping", 30, "websocket ping interval")
+	flag.Int64Var(&maxMessageSize, "wsmaxsize", 512, "websocket max message size")
 	flag.BoolVar(&proxy, "proxy", false, "enable proxy protocol")
 	flag.BoolVar(&noLog, "nolog", false, "disable access logging")
 	flag.Parse()
+	if pingInterval <= 0 {
+		fmt.Printf("invalid value \"%d\" for flag -wsping: zero or less\n", pingInterval)
+		os.Exit(2)
+	}
 	zlog := zerolog.New(os.Stderr).Level(zerolog.DebugLevel).With().
 		Int("http", httpPort).
 		Int("https", httpsPort).
 		Int("timeout", idleTimeout).
+		Int("wsping", int(pingInterval)).
+		Int("wsmaxsize", int(maxMessageSize)).
 		Bool("proxy", proxy).
 		Bool("nolog", noLog).Logger()
 
@@ -41,7 +49,11 @@ func init() {
 	} else {
 		zlog.Log().Msg("running on non-AWS")
 	}
+
 	hub = newHub()
+	pingPeriod = time.Duration(pingInterval) * time.Second // Send pings to peer with this period. Must be less than pongWait.
+	pongWait = pingPeriod * 10 / 9                         // Time allowed to read the next pong message from the peer.
+	writeWait = 10 * time.Second                           // Time allowed to write a message to the peer.
 }
 
 func getMetaDataType() string {

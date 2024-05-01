@@ -15,10 +15,50 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+
+	_ "embed"
 
 	"github.com/gorilla/websocket"
 )
+
+var (
+	hub            *Hub
+	maxMessageSize int64 // Maximum message size allowed from peer.
+	pingInterval   int64
+	writeWait      time.Duration
+	pingPeriod     time.Duration
+	pongWait       time.Duration
+
+	newline = []byte{'\n'}
+	space   = []byte{' '}
+
+	//go:embed websocket.html
+	chatHtml string
+)
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+}
+
+// Client is a middleman between the websocket connection and the hub.
+type Client struct {
+	hub *Hub
+
+	// The websocket connection.
+	conn *websocket.Conn
+
+	// Buffered channel of outbound messages.
+	send chan []byte
+
+	// client identifier
+	id string
+
+	// closed flag
+	closed bool
+}
 
 // Hub maintains the set of active clients and broadcasts messages to the
 // clients.
@@ -57,128 +97,18 @@ func (h *Hub) run() {
 			}
 		case message := <-h.broadcast:
 			for client := range h.clients {
-				select {
-				case client.send <- message:
-				default:
-					close(client.send)
-					delete(h.clients, client)
+				if !client.closed {
+					select {
+					case client.send <- message:
+					default:
+						close(client.send)
+						delete(h.clients, client)
+					}
 				}
 			}
 		}
 	}
 }
-
-const page = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<title>Gelbo Chat</title>
-<link rel="icon" href="data:,">
-<script>
-window.onload = () => {
-    let conn;
-    const btn = document.getElementById("btn");
-    const msg = document.getElementById("msg");
-    const log = document.getElementById("log");
-
-    const appendLog = (item) => {
-        const doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
-        log.appendChild(item);
-        if (doScroll) {
-            log.scrollTop = log.scrollHeight - log.clientHeight;
-        }
-    }
-
-    document.getElementById("form").onsubmit = () => {
-        if (!conn) {
-            return false;
-        }
-        if (!msg.value) {
-            return false;
-        }
-        conn.send(msg.value);
-        msg.value = "";
-        return false;
-    };
-
-    if (window["WebSocket"]) {
-        const schema = location.protocol.indexOf('https') !== -1 ? 'wss' : 'ws';
-        conn = new WebSocket(schema + "://" + location.host + "/ws/");
-        conn.onopen = function (evt) {
-            const item = document.createElement("div");
-            item.innerHTML = "<b>Open: " + JSON.stringify(evt) + "</b>";
-            appendLog(item);
-        };
-        conn.onmessage = function (evt) {
-            const messages = evt.data.split('\n');
-            for (let i = 0; i < messages.length; i++) {
-                const item = document.createElement("div");
-                item.innerText = messages[i];
-                appendLog(item);
-            }
-        };
-        conn.onclose = function (evt) {
-            const item = document.createElement("div");
-            item.innerHTML = "<b>Connection closed.</b>";
-            appendLog(item);
-        };
-        conn.onerror = function (evt) {
-            const item = document.createElement("div");
-            item.innerHTML = "<b>Error: " + JSON.stringify(evt) + "</b>";
-            appendLog(item);
-        };
-    } else {
-        const item = document.createElement("div");
-        item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
-        appendLog(item);
-    }
-};
-</script>
-<style type="text/css">
-html {
-    overflow: hidden;
-}
-
-body {
-    overflow: hidden;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    height: 100%;
-    background: gray;
-}
-
-#log {
-    background: white;
-    margin: 0;
-    padding: 0.5em 0.5em 0.5em 0.5em;
-    position: absolute;
-    top: 0.5em;
-    left: 0.5em;
-    right: 0.5em;
-    bottom: 3em;
-    overflow: auto;
-}
-
-#form {
-    padding: 0 0.5em 0 0.5em;
-    margin: 0;
-    position: absolute;
-    bottom: 1em;
-    left: 0px;
-    width: 100%;
-    overflow: hidden;
-}
-
-</style>
-</head>
-<body>
-<div id="log"></div>
-<form id="form">
-    <input type="submit" value="Send" />
-    <input type="text" id="msg" size="64" autofocus />
-</form>
-</body>
-</html>`
 
 func chatPageHandler(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/chat/" {
@@ -189,49 +119,37 @@ func chatPageHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	fmt.Printf("chat RemoteAddr: %v\n", r.RemoteAddr)
-
-	//http.ServeFile(w, r, "websocket.html")
-	w.Header().Set("Content-Type", "text/html")
-	w.Header().Set("Content-Length", strconv.Itoa(len(page)))
-	fmt.Fprint(w, page)
+	fmt.Printf("chat RemoteAddr: %v, X-Forwarded-For: %v\n", r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Length", strconv.Itoa(len(chatHtml)))
+	fmt.Fprint(w, chatHtml)
 }
 
-const (
-	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
+// wsHandler handles websocket requests from the peer.
+func wsHandler(w http.ResponseWriter, r *http.Request) {
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("upgrader.Upgrade error: %v", err)
+		return
+	}
+	fmt.Printf("openWS RemoteAddr: %v, X-Forwarded-For: %v\n", r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
 
-	// Send pings to peer with this period. Must be less than pongWait.
-	//pingPeriod = (pongWait * 9) / 10
-	pingPeriod = 10 * time.Second
+	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), id: getClientID(r, conn)}
+	client.hub.register <- client
 
-	// Time allowed to read the next pong message from the peer.
-	//pongWait = 60 * time.Second
-	pongWait = pingPeriod * 10 / 9
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 512
-)
-
-var (
-	newline = []byte{'\n'}
-	space   = []byte{' '}
-)
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	// Allow collection of memory referenced by the caller by doing all work in
+	// new goroutines.
+	go client.writePump()
+	go client.readPump()
 }
 
-// Client is a middleman between the websocket connection and the hub.
-type Client struct {
-	hub *Hub
-
-	// The websocket connection.
-	conn *websocket.Conn
-
-	// Buffered channel of outbound messages.
-	send chan []byte
+func getClientID(r *http.Request, conn *websocket.Conn) (clientID string) {
+	clientID = fmt.Sprintf("%s, %s", r.RemoteAddr, conn.LocalAddr())
+	if r.Header.Get("X-Forwarded-For") != "" {
+		clientID = fmt.Sprintf("%s, %s", r.Header.Get("X-Forwarded-For"), clientID)
+	}
+	return strings.Replace(clientID, " ", "", -1)
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -254,11 +172,14 @@ func (c *Client) readPump() {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("websocket.IsUnexpectedCloseError error: %v", err)
 			}
+			// notification connection closed
+			c.closed = true
+			c.hub.broadcast <- []byte(fmt.Sprintf("Closed Connection [%s]", c.id))
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		c.hub.broadcast <- message
-		fmt.Printf("RemoteAddr: %v, LocalAddr: %v, msg: %v\n", c.conn.RemoteAddr(), c.conn.LocalAddr(), message)
+		log.Printf("msg from: %s, message: %s", c.id, message)
 	}
 }
 
@@ -276,7 +197,7 @@ func (c *Client) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			log.Printf("msg  RemoteAddr: %v", c.conn.RemoteAddr())
+			log.Printf("msg   to: %s, message: %s", c.id, message)
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				log.Println("get message from c.send not ok")
@@ -305,28 +226,11 @@ func (c *Client) writePump() {
 			}
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			log.Printf("ping RemoteAddr: %v", c.conn.RemoteAddr())
+			log.Printf("ping  to: %s", c.id)
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				log.Printf("ticker triggered c.conn.WriteMessage error: %v", err)
 				return
 			}
 		}
 	}
-}
-
-// wsHandler handles websocket requests from the peer.
-func wsHandler(w http.ResponseWriter, r *http.Request) {
-	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("upgrader.Upgrade error: %v", err)
-		return
-	}
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256)}
-	client.hub.register <- client
-
-	// Allow collection of memory referenced by the caller by doing all work in
-	// new goroutines.
-	go client.writePump()
-	go client.readPump()
 }

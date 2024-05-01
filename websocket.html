@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Gelbo Chat</title>
+<link rel="icon" href="data:,">
+<script>
+window.onload = () => {
+    let conn;
+    const btn = document.getElementById("btn");
+    const msg = document.getElementById("msg");
+    const log = document.getElementById("log");
+
+    const appendLog = (item) => {
+        const doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
+        log.appendChild(item);
+        if (doScroll) {
+            log.scrollTop = log.scrollHeight - log.clientHeight;
+        }
+    }
+
+    document.getElementById("form").onsubmit = () => {
+        if (!conn) {
+            return false;
+        }
+        if (!msg.value) {
+            return false;
+        }
+        conn.send(msg.value);
+        msg.value = "";
+        return false;
+    };
+
+    document.getElementById("open").onclick = () => {
+      if (!conn) connectWebSocket();
+    };
+
+    document.getElementById("close").onclick = () => {
+      if (conn) conn.close();
+    };
+
+    const connectWebSocket = () => {
+      const schema = location.protocol.indexOf('https') !== -1 ? 'wss' : 'ws';
+      conn = new WebSocket(schema + "://" + location.host + "/ws/");
+      conn.onopen = function (evt) {
+          const item = document.createElement("div");
+          item.innerHTML = "<b>Connection opened.</b>";
+          appendLog(item);
+      };
+      conn.onmessage = function (evt) {
+          if (!conn) conn = new WebSocket(schema + "://" + location.host + "/ws/");
+          const messages = evt.data.split('\n');
+          for (let i = 0; i < messages.length; i++) {
+              const item = document.createElement("div");
+              item.innerText = messages[i];
+              appendLog(item);
+          }
+      };
+      conn.onclose = function (evt) {
+          const item = document.createElement("div");
+          item.innerHTML = "<b>Connection closed.</b>";
+          conn = null;
+          appendLog(item);
+      };
+      conn.onerror = function (evt) {
+          const item = document.createElement("div");
+          item.innerHTML = "<b>Error: " + JSON.stringify(evt) + "</b>";
+          conn = null;
+          appendLog(item);
+      };
+    };
+
+    if (window["WebSocket"]) {
+        connectWebSocket();
+    } else {
+        const item = document.createElement("div");
+        item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
+        appendLog(item);
+    }
+};
+</script>
+<style type="text/css">
+html {
+    overflow: hidden;
+}
+
+body {
+    overflow: hidden;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    background: gray;
+}
+
+#log {
+    background: white;
+    margin: 0;
+    padding: 0.5em 0.5em 0.5em 0.5em;
+    position: absolute;
+    top: 0.5em;
+    left: 0.5em;
+    right: 0.5em;
+    bottom: 3em;
+    overflow: auto;
+}
+
+#form {
+    padding: 0 0.5em 0 0.5em;
+    margin: 0;
+    position: absolute;
+    bottom: 1em;
+    left: 0px;
+    width: 100%;
+    overflow: hidden;
+}
+
+</style>
+</head>
+<body>
+<div id="log"></div>
+<form id="form">
+    <input type="submit" value="Send" />
+    <input type="text" id="msg" size="64" autofocus />
+    <input type="button" id="open" value="Open" />
+    <input type="button" id="close" value="Close" />
+</form>
+</body>
+</html>
