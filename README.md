@@ -53,3 +53,20 @@ backend app for testing elb
    docker logout public.ecr.aws
    ```
 
+## copy binary from docker image to host volume
+
+1. build
+
+   ```
+   docker build -t gelbo .
+   ```
+
+1. copy
+
+
+   ```
+   CONTAINER_ID=`docker create gelbo`
+   docker cp $CONTAINER_ID:/app/gelbo .
+   docker rm $CONTAINER_ID
+   ```
+
