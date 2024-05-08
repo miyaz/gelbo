@@ -22,7 +22,7 @@ func init() {
 	flag.IntVar(&httpsPort, "https", 443, "https port")
 	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout")
 	flag.Int64Var(&pingInterval, "wsping", 30, "websocket ping interval")
-	flag.Int64Var(&maxMessageSize, "wsmaxsize", 512, "websocket max message size")
+	//flag.Int64Var(&maxMessageSize, "wsmaxsize", 1024, "websocket max message size")
 	flag.BoolVar(&proxy, "proxy", false, "enable proxy protocol")
 	flag.BoolVar(&noLog, "nolog", false, "disable access logging")
 	flag.Parse()
@@ -35,7 +35,7 @@ func init() {
 		Int("https", httpsPort).
 		Int("timeout", idleTimeout).
 		Int("wsping", int(pingInterval)).
-		Int("wsmaxsize", int(maxMessageSize)).
+		//Int("wsmaxsize", int(maxMessageSize)).
 		Bool("proxy", proxy).
 		Bool("nolog", noLog).Logger()
 
@@ -54,6 +54,7 @@ func init() {
 	pingPeriod = time.Duration(pingInterval) * time.Second // Send pings to peer with this period. Must be less than pongWait.
 	pongWait = pingPeriod * 10 / 9                         // Time allowed to read the next pong message from the peer.
 	writeWait = 10 * time.Second                           // Time allowed to write a message to the peer.
+	maxMessageSize = 1024                                  // Maximum message size allowed from peer.
 }
 
 func getMetaDataType() string {

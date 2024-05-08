@@ -5,124 +5,198 @@
 <link rel="icon" href="data:,">
 <script>
 window.onload = () => {
-    let conn;
-    const btn = document.getElementById("btn");
-    const msg = document.getElementById("msg");
-    const log = document.getElementById("log");
+  let conn;
+  const logArea = document.getElementById("log-area");
+  const logTbl = document.getElementById("log-table");
+  const openbtn = document.getElementById("open");
+  const closebtn = document.getElementById("close");
+  const chatmsg = document.getElementById("chatmsg");
+  const echomsg = document.getElementById("echomsg");
 
-    const appendLog = (item) => {
-        const doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
-        log.appendChild(item);
-        if (doScroll) {
-            log.scrollTop = log.scrollHeight - log.clientHeight;
-        }
+  const appendLog = (item) => {
+    const doScroll = logArea.scrollTop > logArea.scrollHeight - logArea.clientHeight - 1;
+    logArea.appendChild(item);
+    if (doScroll) {
+      logArea.scrollTop = logArea.scrollHeight - logArea.clientHeight;
     }
 
-    document.getElementById("form").onsubmit = () => {
-        if (!conn) {
-            return false;
-        }
-        if (!msg.value) {
-            return false;
-        }
-        conn.send(msg.value);
-        msg.value = "";
-        return false;
-    };
+    // for table
+    const doScrollTbl = logTbl.scrollTop > logTbl.scrollHeight - logTbl.clientHeight - 1;
+    const text = item.innerHTML;
+    const msg = JSON.parse(text).message;
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    const cellText = document.createTextNode(msg);
+    cell.colSpan = 3;
+    cell.appendChild(cellText);
+    row.appendChild(cell);
+    const tblBody = document.getElementById("tbody");
+    tblBody.appendChild(row);
+    if (doScrollTbl) {
+      logTbl.scrollTop = logTbl.scrollHeight - logTbl.clientHeight;
+    }
+  }
 
-    document.getElementById("open").onclick = () => {
-      if (!conn) connectWebSocket();
-    };
+  document.getElementById("chatform").onsubmit = () => {
+    if (!conn) {
+      alert("Please connect first");
+      return false;
+    }
+    if (!chatmsg.value) return false;
+    conn.send(chatmsg.value);
+    chatmsg.value = "";
+    chatmsg.focus();
+    return false;
+  };
 
-    document.getElementById("close").onclick = () => {
-      if (conn) conn.close();
-    };
+  document.getElementById("echoform").onsubmit = () => {
+    if (!conn) {
+      alert("Please connect first");
+      return false;
+    }
+    if (!echomsg.value) return false;
+    conn.send("test"+echomsg.value);
+    echomsg.value = "";
+    echomsg.focus();
+    return false;
+  };
 
-    const connectWebSocket = () => {
-      const schema = location.protocol.indexOf('https') !== -1 ? 'wss' : 'ws';
-      conn = new WebSocket(schema + "://" + location.host + "/ws/");
-      conn.onopen = function (evt) {
-          const item = document.createElement("div");
-          item.innerHTML = "<b>Connection opened.</b>";
-          appendLog(item);
-      };
-      conn.onmessage = function (evt) {
-          if (!conn) conn = new WebSocket(schema + "://" + location.host + "/ws/");
-          const messages = evt.data.split('\n');
-          for (let i = 0; i < messages.length; i++) {
-              const item = document.createElement("div");
-              item.innerText = messages[i];
-              appendLog(item);
-          }
-      };
-      conn.onclose = function (evt) {
-          const item = document.createElement("div");
-          item.innerHTML = "<b>Connection closed.</b>";
-          conn = null;
-          appendLog(item);
-      };
-      conn.onerror = function (evt) {
-          const item = document.createElement("div");
-          item.innerHTML = "<b>Error: " + JSON.stringify(evt) + "</b>";
-          conn = null;
-          appendLog(item);
-      };
-    };
+  document.getElementById("open").onclick = () => {
+    if (!conn) connectWebSocket();
+  };
 
-    if (window["WebSocket"]) {
-        connectWebSocket();
-    } else {
+  document.getElementById("close").onclick = () => {
+    if (conn) conn.close();
+  };
+
+  const connectWebSocket = () => {
+    const schema = location.protocol.indexOf('https') !== -1 ? 'wss' : 'ws';
+    const wsTarget = schema + "://" + location.host + "/ws/";
+    //const wsTarget = "wss://gelbo.shinjimi.hjk.jp/ws/"
+    conn = new WebSocket(wsTarget);
+    conn.onopen = (evt) => {
+      chatmsg.focus();
+      const item = document.createElement("div");
+      item.innerHTML = "<b>Connection opened.</b>";
+      appendLog(item);
+    };
+    const bgColors = ["aqua", "black", "blue", "fuchsia", "gray", "green", "lime","maroon", "navy", "olive", "purple", "silver", "teal", "white", "yellow"];
+    const fgGrays = ["black", "blue", "maroon", "navy", "purple", "green", "olive", "teal"];
+    let index = 0;
+    conn.onmessage = (evt) => {
+      const messages = evt.data.split('\n');
+      for (let i = 0; i < messages.length; i++) {
+        //const color = JSON.parse(messages[i]).color;
+        const color = bgColors[index++ % bgColors.length];
         const item = document.createElement("div");
-        item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
+        item.style.backgroundColor = color;
+        item.style.color = fgGrays.includes(color) ? '#cccccc' : 'black';
+        item.innerText = messages[i];
         appendLog(item);
-    }
+      }
+    };
+    conn.onclose = (evt) => {
+      const item = document.createElement("div");
+      item.innerHTML = "<b>Connection closed.</b>";
+      conn = null;
+      appendLog(item);
+    };
+    conn.onerror = (evt) => {
+      const item = document.createElement("div");
+      console.log(JSON.stringify(evt));
+      item.innerHTML = "Error occurred connecting to [" + wsTarget + "]";
+      conn = null;
+      appendLog(item);
+    };
+  };
+
+  if (window["WebSocket"]) {
+    connectWebSocket();
+  } else {
+    const item = document.createElement("div");
+    item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
+    appendLog(item);
+  }
 };
 </script>
 <style type="text/css">
 html {
-    overflow: hidden;
+  overflow: hidden;
 }
 
 body {
-    overflow: hidden;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    height: 100%;
-    background: gray;
+  overflow: hidden;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: gray;
 }
 
-#log {
-    background: white;
-    margin: 0;
-    padding: 0.5em 0.5em 0.5em 0.5em;
-    position: absolute;
-    top: 0.5em;
-    left: 0.5em;
-    right: 0.5em;
-    bottom: 3em;
-    overflow: auto;
+#log-table {
+  background: white;
+  margin: 0;
+  padding: 0.5em 0.5em 0.5em 0.5em;
+  position: absolute;
+  top: 0.5em;
+  left: 0.5em;
+  right: 0.5em;
+  bottom: 53vh;
+  overflow: auto;
 }
 
-#form {
-    padding: 0 0.5em 0 0.5em;
-    margin: 0;
-    position: absolute;
-    bottom: 1em;
-    left: 0px;
-    width: 100%;
-    overflow: hidden;
+#log-area {
+  background: white;
+  margin: 1;
+  padding: 0.5em 0.5em 0.5em 0.5em;
+  position: absolute;
+  top: 48vh;
+  left: 0.5em;
+  right: 0.5em;
+  bottom: 3em;
+  overflow: auto;
+}
+
+#input-container {
+  padding: 0 0.5em 0 0.5em;
+  margin: 0;
+  position: absolute;
+  bottom: 1em;
+  left: 0px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.input {
+  float: left;
+  padding: 0 0.5em;
 }
 
 </style>
 </head>
 <body>
-<div id="log"></div>
-<form id="form">
-    <input type="submit" value="Send" />
-    <input type="text" id="msg" size="64" autofocus />
-    <input type="button" id="open" value="Open" />
-    <input type="button" id="close" value="Close" />
-</form>
+<div id="log-table">
+  <table id="table" border="1">
+    <tbody id="tbody">
+      <tr><th>Timestamp</th><th>ClientId</th><th>Message</th></tr>
+      <tr><td>hoge</td><td>hoge</td><td>hoge</td></tr>
+      <tr><td colspan="3">hoge</td></tr>
+    </tbody>
+  </table>
+</div>
+<div id="log-area"></div>
+<div id="input-container">
+  <input type="button" id="open" class="input" value="Connect" />
+  <input type="button" id="close" class="input" value="Disconnect" />
+  <form id="chatform" class="input" action="#">
+    <input type="text" id="chatmsg" size="50" placeholder="Entered text is sent as chat message (send to all users)" />
+    <input type="submit" value="Post" />
+  </form>
+  <form id="echoform" class="input" action="#">
+    <input type="text" id="echomsg" size="50" placeholder="Entered text is sent as echo message (return to myself)" />
+    <input type="submit" value="Echo" />
+  </form>
+</div>
 </body>
 </html>
+

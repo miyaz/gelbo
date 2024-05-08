@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ import (
 	_ "embed"
 
 	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog"
 )
 
 var (
@@ -43,6 +45,14 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+// Message is struct(json) of WebSocket communication.
+type Message struct {
+	Method   string    `json:"method,omitempty"`
+	Message  string    `json:"message,omitempty"`
+	Time     time.Time `json:"time,omitempty"`
+	ClientId string    `json:"clientId,omitempty"`
+}
+
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
 	hub *Hub
@@ -54,14 +64,15 @@ type Client struct {
 	send chan []byte
 
 	// client identifier
-	id string
+	id    string
+	name  string
+	color string
 
 	// closed flag
 	closed bool
 }
 
-// Hub maintains the set of active clients and broadcasts messages to the
-// clients.
+// Hub maintains the set of active clients and broadcasts messages to the clients.
 type Hub struct {
 	// Registered clients.
 	clients map[*Client]bool
@@ -135,13 +146,23 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Printf("openWS RemoteAddr: %v, X-Forwarded-For: %v\n", r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
 
-	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), id: getClientID(r, conn)}
+	proto, _ := r.Context().Value("proto").(string)
+	remotePort := extractPort(r.RemoteAddr)
+	remoteAddr := extractIPAddress(r.RemoteAddr)
+	logger := zerolog.New(os.Stdout).With().
+		Time("conntime", time.Now()).
+		Str("proto", proto).
+		Str("srcip", remoteAddr).
+		Int("srcport", remotePort).
+		Logger()
+
+	client := &Client{hub: hub, conn: conn, send: make(chan []byte, 256), id: getClientID(r, conn), name: "John Doe", color: "green"}
 	client.hub.register <- client
 
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
-	go client.writePump()
-	go client.readPump()
+	go client.writePump(logger)
+	go client.readPump(logger)
 }
 
 func getClientID(r *http.Request, conn *websocket.Conn) (clientID string) {
@@ -157,7 +178,7 @@ func getClientID(r *http.Request, conn *websocket.Conn) (clientID string) {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *Client) readPump() {
+func (c *Client) readPump(logger zerolog.Logger) {
 	defer func() {
 		c.hub.unregister <- c
 		c.conn.Close()
@@ -168,18 +189,24 @@ func (c *Client) readPump() {
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
-			log.Printf("c.conn.ReadMessage error: %v", err)
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("websocket.IsUnexpectedCloseError error: %v", err)
+				log.Printf("UnexpectedCloseError error: %v", err)
+			} else {
+				log.Printf("ExpectedCloseError error: %v", err)
 			}
 			// notification connection closed
 			c.closed = true
-			c.hub.broadcast <- []byte(fmt.Sprintf("Closed Connection [%s]", c.id))
+			c.hub.broadcast <- []byte(fmt.Sprintf("Closed Connection with peer[%s] caused by [%v]", c.id, err))
 			break
 		}
+		logger2 := logger.With().
+			Time("readtime", time.Now()).Logger()
+		logger2.Log().Msg("pong")
+
+		message = []byte(fmt.Sprintf(`{"message":"%s", "id":"%s", "name":"%s", "color":"%s"}`, message, c.id, c.name, c.color))
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
 		c.hub.broadcast <- message
-		log.Printf("msg from: %s, message: %s", c.id, message)
+		log.Printf("msg from: %s[%s], message: %s", c.name, c.id, message)
 	}
 }
 
@@ -188,7 +215,7 @@ func (c *Client) readPump() {
 // A goroutine running writePump is started for each connection. The
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
-func (c *Client) writePump() {
+func (c *Client) writePump(logger zerolog.Logger) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -209,6 +236,9 @@ func (c *Client) writePump() {
 			w, err := c.conn.NextWriter(websocket.TextMessage)
 			if err != nil {
 				log.Printf("c.send triggered c.conn.NextWriter error: %v", err)
+				// notification connection closed
+				c.closed = true
+				c.hub.broadcast <- []byte(fmt.Sprintf("Closed Connection with peer[%s] caused by [%v] in NextWriter", c.id, err))
 				return
 			}
 			w.Write(message)
@@ -222,13 +252,23 @@ func (c *Client) writePump() {
 
 			if err := w.Close(); err != nil {
 				log.Printf("c.send triggered w.Close error: %v", err)
+				// notification connection closed
+				c.closed = true
+				c.hub.broadcast <- []byte(fmt.Sprintf("Closed Connection with peer[%s] caused by [%v] in w.Close", c.id, err))
 				return
 			}
 		case <-ticker.C:
+			logger2 := logger.With().
+				Time("writetime", time.Now()).Logger()
+			logger2.Log().Msg("ping")
+
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			log.Printf("ping  to: %s", c.id)
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				log.Printf("ticker triggered c.conn.WriteMessage error: %v", err)
+				// notification connection closed
+				c.closed = true
+				c.hub.broadcast <- []byte(fmt.Sprintf("Closed Connection with peer[%s] caused by [%v] in WriteMessage", c.id, err))
 				return
 			}
 		}
