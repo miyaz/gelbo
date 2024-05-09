@@ -188,7 +188,10 @@ func (cw *ConnectionWatcher) getActiveConns() int64 {
 }
 
 func execHandler(w http.ResponseWriter, r *http.Request) {
+	reqtime := time.Now()
+
 	qsMap := r.URL.Query()
+	var respStrs []string
 	for key, values := range qsMap {
 		if key != "cmd" {
 			continue
@@ -207,15 +210,22 @@ func execHandler(w http.ResponseWriter, r *http.Request) {
 				out, err = exec.Command(args[0], args[1:]...).Output()
 			}
 			if err != nil {
-				fmt.Fprintf(w, "%v\n", err)
+				respStrs = append(respStrs, fmt.Sprintf("%v\n", err))
 			}
-			fmt.Fprintf(w, "%s\n", string(out))
+			respStrs = append(respStrs, fmt.Sprintf("%s\n", string(out)))
 		}
 	}
+	respBody := strings.Join(respStrs, "")
+	fmt.Fprintf(w, "%s", respBody)
+
+	httpLog(reqtime, int64(len(respBody)), http.StatusOK, r)
 }
 
 func envHandler(w http.ResponseWriter, r *http.Request) {
+	reqtime := time.Now()
+
 	qsMap := r.URL.Query()
+	var respStrs []string
 	for key, values := range qsMap {
 		if key != "key" {
 			continue
@@ -225,9 +235,13 @@ func envHandler(w http.ResponseWriter, r *http.Request) {
 			if strings.Index(value, "ACCESS_KEY") != -1 {
 				continue
 			}
-			fmt.Fprintf(w, "%s\n", os.Getenv(value))
+			respStrs = append(respStrs, fmt.Sprintf("%s\n", os.Getenv(value)))
 		}
 	}
+	respBody := strings.Join(respStrs, "")
+	fmt.Fprintf(w, "%s", respBody)
+
+	httpLog(reqtime, int64(len(respBody)), http.StatusOK, r)
 }
 
 func stopHandler(w http.ResponseWriter, r *http.Request) {
@@ -236,9 +250,8 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	reqtime := time.Now()
-	proto, _ := r.Context().Value("proto").(string)
-	logger := zerolog.New(os.Stdout).With().Time("reqtime", reqtime).Str("proto", proto).Logger()
 
+	proto, _ := r.Context().Value("proto").(string)
 	queryStr, _ := url.QueryUnescape(r.URL.Query().Encode())
 	reqInfo := RequestInfo{
 		Proto:  proto,
@@ -274,26 +287,10 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	respSize, statusCode := execAction(w, &respInfo)
 
 	store.node.reflectRequest(reqSize, respSize)
-	remotePort := extractPort(r.RemoteAddr)
 	remoteAddr := extractIPAddress(r.RemoteAddr)
 	remoteNodes.m[remoteAddr].reflectRequest(reqSize, respSize)
 
-	// request logging
-	restime := time.Now()
-	logger = logger.With().
-		Str("method", r.Method).
-		Str("path", r.URL.EscapedPath()).
-		Str("qstr", queryStr).
-		Str("clientip", reqInfo.ClientIP).
-		Str("srcip", remoteAddr).
-		Int("srcport", remotePort).
-		Int64("reqsize", reqSize).
-		Int64("size", respSize).
-		Int("status", statusCode).
-		Time("time", restime).
-		Dur("duration", restime.Sub(reqtime)).
-		Logger()
-	logger.Log().Msg("")
+	httpLog(reqtime, respSize, statusCode, r)
 }
 
 func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
@@ -346,6 +343,43 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
 		fmt.Println(err)
 	}
 	return int64(respSize), statusCode
+}
+
+func getClientIPAddress(r *http.Request) (clientIP string) {
+	xff := splitXFF(r.Header.Get("X-Forwarded-For"))
+	if len(xff) == 0 {
+		clientIP = extractIPAddress(r.RemoteAddr)
+	} else {
+		clientIP = extractIPAddress(xff[0])
+	}
+	return
+}
+
+func httpLog(reqtime time.Time, respSize int64, statusCode int, r *http.Request) {
+	proto, _ := r.Context().Value("proto").(string)
+	logger := zerolog.New(os.Stdout).With().Time("reqtime", reqtime).Str("proto", proto).Logger()
+
+	queryStr, _ := url.QueryUnescape(r.URL.Query().Encode())
+	remotePort := extractPort(r.RemoteAddr)
+	remoteAddr := extractIPAddress(r.RemoteAddr)
+	reqSize, _ := io.Copy(io.Discard, r.Body)
+
+	// request logging
+	restime := time.Now()
+	logger = logger.With().
+		Str("method", r.Method).
+		Str("path", r.URL.EscapedPath()).
+		Str("qstr", queryStr).
+		Str("clientip", getClientIPAddress(r)).
+		Str("srcip", remoteAddr).
+		Int("srcport", remotePort).
+		Int64("reqsize", reqSize).
+		Int64("size", respSize).
+		Int("status", statusCode).
+		Time("time", restime).
+		Dur("duration", restime.Sub(reqtime)).
+		Logger()
+	logger.Log().Msg("")
 }
 
 func loadTLSConfig() *tls.Config {

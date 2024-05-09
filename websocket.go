@@ -122,18 +122,23 @@ func (h *Hub) run() {
 }
 
 func chatPageHandler(w http.ResponseWriter, r *http.Request) {
+	reqtime := time.Now()
+
 	if r.URL.Path != "/chat/" {
-		http.Error(w, "Not found", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+		httpLog(reqtime, 0, http.StatusNotFound, r)
 		return
 	}
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		httpLog(reqtime, 0, http.StatusMethodNotAllowed, r)
 		return
 	}
-	fmt.Printf("chat RemoteAddr: %v, X-Forwarded-For: %v\n", r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Length", strconv.Itoa(len(chatHtml)))
 	fmt.Fprint(w, chatHtml)
+
+	httpLog(reqtime, int64(len(chatHtml)), http.StatusOK, r)
 }
 
 // wsHandler handles websocket requests from the peer.
