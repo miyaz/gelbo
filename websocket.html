@@ -3,122 +3,6 @@
 <head>
 <title>Gelbo Chat</title>
 <link rel="icon" href="data:,">
-<script>
-window.onload = () => {
-  let conn;
-  const logArea = document.getElementById("log-area");
-  const logTbl = document.getElementById("log-table");
-  const openbtn = document.getElementById("open");
-  const closebtn = document.getElementById("close");
-  const chatmsg = document.getElementById("chatmsg");
-  const echomsg = document.getElementById("echomsg");
-
-  const appendLog = (item) => {
-    const doScroll = logArea.scrollTop > logArea.scrollHeight - logArea.clientHeight - 1;
-    logArea.appendChild(item);
-    if (doScroll) {
-      logArea.scrollTop = logArea.scrollHeight - logArea.clientHeight;
-    }
-
-    // for table
-    const doScrollTbl = logTbl.scrollTop > logTbl.scrollHeight - logTbl.clientHeight - 1;
-    const text = item.innerHTML;
-    const msg = JSON.parse(text).message;
-    const row = document.createElement("tr");
-    const cell = document.createElement("td");
-    const cellText = document.createTextNode(msg);
-    cell.colSpan = 3;
-    cell.appendChild(cellText);
-    row.appendChild(cell);
-    const tblBody = document.getElementById("tbody");
-    tblBody.appendChild(row);
-    if (doScrollTbl) {
-      logTbl.scrollTop = logTbl.scrollHeight - logTbl.clientHeight;
-    }
-  }
-
-  document.getElementById("chatform").onsubmit = () => {
-    if (!conn) {
-      alert("Please connect first");
-      return false;
-    }
-    if (!chatmsg.value) return false;
-    conn.send(chatmsg.value);
-    chatmsg.value = "";
-    chatmsg.focus();
-    return false;
-  };
-
-  document.getElementById("echoform").onsubmit = () => {
-    if (!conn) {
-      alert("Please connect first");
-      return false;
-    }
-    if (!echomsg.value) return false;
-    conn.send("test"+echomsg.value);
-    echomsg.value = "";
-    echomsg.focus();
-    return false;
-  };
-
-  document.getElementById("open").onclick = () => {
-    if (!conn) connectWebSocket();
-  };
-
-  document.getElementById("close").onclick = () => {
-    if (conn) conn.close();
-  };
-
-  const connectWebSocket = () => {
-    const schema = location.protocol.indexOf('https') !== -1 ? 'wss' : 'ws';
-    const wsTarget = schema + "://" + location.host + "/ws/";
-    //const wsTarget = "wss://gelbo.shinjimi.hjk.jp/ws/"
-    conn = new WebSocket(wsTarget);
-    conn.onopen = (evt) => {
-      chatmsg.focus();
-      const item = document.createElement("div");
-      item.innerHTML = "<b>Connection opened.</b>";
-      appendLog(item);
-    };
-    const bgColors = ["aqua", "black", "blue", "fuchsia", "gray", "green", "lime","maroon", "navy", "olive", "purple", "silver", "teal", "white", "yellow"];
-    const fgGrays = ["black", "blue", "maroon", "navy", "purple", "green", "olive", "teal"];
-    let index = 0;
-    conn.onmessage = (evt) => {
-      const messages = evt.data.split('\n');
-      for (let i = 0; i < messages.length; i++) {
-        //const color = JSON.parse(messages[i]).color;
-        const color = bgColors[index++ % bgColors.length];
-        const item = document.createElement("div");
-        item.style.backgroundColor = color;
-        item.style.color = fgGrays.includes(color) ? '#cccccc' : 'black';
-        item.innerText = messages[i];
-        appendLog(item);
-      }
-    };
-    conn.onclose = (evt) => {
-      const item = document.createElement("div");
-      item.innerHTML = "<b>Connection closed.</b>";
-      conn = null;
-      appendLog(item);
-    };
-    conn.onerror = (evt) => {
-      const item = document.createElement("div");
-      console.log(JSON.stringify(evt));
-      item.innerHTML = "Error occurred connecting to [" + wsTarget + "]";
-      conn = null;
-      appendLog(item);
-    };
-  };
-
-  if (window["WebSocket"]) {
-    connectWebSocket();
-  } else {
-    const item = document.createElement("div");
-    item.innerHTML = "<b>Your browser does not support WebSockets.</b>";
-    appendLog(item);
-  }
-};
-</script>
 <style type="text/css">
 html {
   overflow: hidden;
@@ -131,61 +15,124 @@ body {
   width: 100%;
   height: 100%;
   background: gray;
+  font-family: sans-serif, monospace;
 }
 
-#log-table {
+#header {
+  padding: 0 1.5em 0 0.5em;
+  margin: 0;
+  position: absolute;
+  top: 0.3em;
+  left: 0px;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: start;
+}
+
+#title {
+  border-radius: 6px;
+  background: silver;
+  font-size: 1.2rem;
+  padding: 0 0.6em 0 0.6em;
+  white-space: nowrap;
+  cursor: default;
+}
+
+#chat-table {
   background: white;
   margin: 0;
   padding: 0.5em 0.5em 0.5em 0.5em;
   position: absolute;
-  top: 0.5em;
-  left: 0.5em;
-  right: 0.5em;
-  bottom: 53vh;
-  overflow: auto;
-}
-
-#log-area {
-  background: white;
-  margin: 1;
-  padding: 0.5em 0.5em 0.5em 0.5em;
-  position: absolute;
-  top: 48vh;
+  top: 2.5em;
   left: 0.5em;
   right: 0.5em;
   bottom: 3em;
   overflow: auto;
 }
 
-#input-container {
-  padding: 0 0.5em 0 0.5em;
+table {
+  border-collapse: separate;
+  border-spacing: 1;
+  border: 1px solid #333;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+thead th {
+  background-color: lightblue;
+  background-clip: padding-box;
+}
+
+tbody td {
+  background-color: white;
+  background-clip: padding-box;
+}
+
+.nonmsg-col {
+  padding: 5px 10px;
+  min-width: 200px;
+  white-space: nowrap;
+}
+
+.msg-col {
+  padding: 0px 10px;
+  min-width: 500px;
+}
+
+th, td {
+  border-bottom: 1px solid #555;
+}
+
+th {
+  background-color: #eee;
+}
+
+tr:last-child th,
+tr:last-child td {
+  border-bottom: none;
+}
+
+#footer {
+  padding: 0 0.5em 0 1.5em;
   margin: 0;
   position: absolute;
   bottom: 1em;
   left: 0px;
   width: 100%;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: start;
 }
 
 .input {
   float: left;
   padding: 0 0.5em;
 }
-
 </style>
 </head>
 <body>
-<div id="log-table">
-  <table id="table" border="1">
+<div id="header">
+  <div id="title">Gelbo Chat</div>
+  <div id="conn-info"></div>
+  <div id="conn-msg"></div>
+</div>
+<div id="chat-table">
+  <table>
+    <thead>
+      <tr>
+        <th class="nonmsg-col">Timestamp</th>
+        <th class="nonmsg-col">ClientId <div style="font-size: 0.8em;">([XFF,]RemoteAddr,LocalAddr)</div></th>
+        <th class="msg-col">Message</th>
+      </tr>
+    </thead>
     <tbody id="tbody">
-      <tr><th>Timestamp</th><th>ClientId</th><th>Message</th></tr>
-      <tr><td>hoge</td><td>hoge</td><td>hoge</td></tr>
-      <tr><td colspan="3">hoge</td></tr>
     </tbody>
   </table>
 </div>
-<div id="log-area"></div>
-<div id="input-container">
+<div id="footer">
   <input type="button" id="open" class="input" value="Connect" />
   <input type="button" id="close" class="input" value="Disconnect" />
   <form id="chatform" class="input" action="#">
@@ -197,6 +144,195 @@ body {
     <input type="submit" value="Echo" />
   </form>
 </div>
+
+<script>
+window.onload = () => {
+  let conn;
+  const reload = document.getElementById("title");
+  const connInfo = document.getElementById("conn-info");
+  const connMsg = document.getElementById("conn-msg");
+  const chatTable = document.getElementById("chat-table");
+  const openbtn = document.getElementById("open");
+  const closebtn = document.getElementById("close");
+  const chatmsg = document.getElementById("chatmsg");
+  const echomsg = document.getElementById("echomsg");
+
+  const fgGrays = ["black", "blue", "maroon", "navy", "purple", "green", "olive", "teal", "gray"];
+  const myInfo = {clientId: "", color: "white"};
+
+  const appendRow = (rowData) => {
+    const doScrollTbl = chatTable.scrollTop > chatTable.scrollHeight - chatTable.clientHeight - 1;
+    const tblBody = document.getElementById("tbody");
+    tblBody.appendChild(rowData);
+    if (doScrollTbl) {
+      chatTable.scrollTop = chatTable.scrollHeight - chatTable.clientHeight;
+    }
+  }
+
+  document.getElementById("chatform").onsubmit = () => {
+    if (!conn) {
+      alert("Please connect first");
+      return false;
+    }
+    if (!chatmsg.value) return false;
+    const sendObj = {type: "postToChat", message: chatmsg.value};
+    conn.send(JSON.stringify(sendObj));
+    chatmsg.value = "";
+    chatmsg.focus();
+    return false;
+  };
+
+  document.getElementById("echoform").onsubmit = () => {
+    if (!conn) {
+      alert("Please connect first");
+      return false;
+    }
+    if (!echomsg.value) return false;
+    const sendObj = {type: "echoMessage", message: echomsg.value};
+    conn.send(JSON.stringify(sendObj));
+    echomsg.value = "";
+    echomsg.focus();
+    return false;
+  };
+
+  document.getElementById("title").onclick = () => {
+    location.reload();
+  };
+
+  document.getElementById("open").onclick = () => {
+    if (!conn) connectWebSocket();
+  };
+
+  document.getElementById("close").onclick = () => {
+    if (conn) conn.close();
+  };
+
+  const wsDataHandler = (parsedData) => {
+    if (!parsedData.type) return;
+    switch (parsedData.type) {
+      case "yourInfo":
+        handleYourInfo(parsedData);
+        break;
+      case "deliverMessage":
+        handleMessage(parsedData);
+        break;
+      case "echoReply":
+        handleMessage(parsedData);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleYourInfo = (parsedData) => {
+    if (!parsedData.user) return;
+    myInfo.clientId = parsedData.user.clientId;
+    myInfo.color = parsedData.user.color;
+
+    const wsURL = getWsURL();
+    const splitHops = myInfo.clientId.split(",");
+    const wsServer = splitHops[splitHops.length-1];
+    const item = document.createElement("div");
+    item.style.fontSize = "12px";
+    item.style.backgroundColor = myInfo.color;
+    item.style.marginLeft = "10px";
+    item.style.padding = "4px";
+    item.style.color = fgGrays.includes(myInfo.color) ? '#cccccc' : 'black';
+    item.innerText = "URL => [" + wsURL + "]  Connected Server => [" + wsServer + "]  ClientId => [" + myInfo.clientId + "]";
+    clearConnInfo();
+    connInfo.appendChild(item);
+  }
+
+  const handleMessage = (parsedData) => {
+    appendMessage(parsedData);
+  }
+
+  const appendMessage = (parsedData) => {
+    if (!parsedData.message) return;
+    const message = parsedData.message;
+    const sendTime = parsedData.sendTime ?? new Date().getTime();
+    const clientId = parsedData.user ? parsedData.user.clientId : myInfo.clientId;
+    const color = parsedData.user ? parsedData.user.color : myInfo.color;
+
+    const row = document.createElement("tr");
+    const cell1 = document.createElement("td");
+    const cell2 = document.createElement("td");
+    const cell3 = document.createElement("td");
+    cell1.classList.add("nonmsg-col");
+    cell2.classList.add("nonmsg-col");
+    cell3.classList.add("msg-col");
+    cell1.appendChild(document.createTextNode(new Date(sendTime).toISOString()));
+    cell2.appendChild(document.createTextNode(clientId));
+    cell3.appendChild(document.createTextNode(message));
+    cell2.style.backgroundColor = color;
+    cell2.style.color = fgGrays.includes(color) ? '#cccccc' : 'black';
+    row.appendChild(cell1);
+    row.appendChild(cell2);
+    row.appendChild(cell3);
+    appendRow(row);
+  }
+
+  const clearConnInfo = () => {
+    while (connInfo.firstChild) {
+      connInfo.removeChild(connInfo.firstChild);
+    }
+    while (connMsg.firstChild) {
+      connMsg.removeChild(connMsg.firstChild);
+    }
+  };
+
+  const getWsURL = () => {
+    const schema = location.protocol.indexOf('https') !== -1 ? 'wss' : 'ws';
+    return schema + "://" + location.host + "/ws/";
+  };
+
+  const connectWebSocket = () => {
+    //const wsURL = "wss://gelbo.example.com/ws/"
+    const wsURL = getWsURL();
+    conn = new WebSocket(wsURL);
+    conn.onopen = (evt) => {
+      conn.send(JSON.stringify({type:"whoAmI"}));
+      chatmsg.focus();
+    };
+    conn.onmessage = (evt) => {
+      const messages = evt.data.split('\n');
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+        try {
+          const parsedData = JSON.parse(message);
+          console.log(message);
+          wsDataHandler(parsedData);
+        } catch (err) {
+          // not json
+          console.log(err, message);
+        }
+      }
+    };
+    conn.onclose = (evt) => {
+      appendMessage({message: "Connection closed."});
+      conn = null;
+      if (connInfo.firstChild) {
+        connInfo.firstChild.style.textDecoration = "line-through";
+      }
+      const item = document.createElement("div");
+      item.style.fontSize = "18px";
+      item.style.marginLeft = "10px";
+      item.innerText = "Disconnected";
+      connMsg.appendChild(item);
+    };
+    conn.onerror = (evt) => {
+      console.log("onerror", evt);
+      conn = null;
+    };
+  };
+
+  if (window["WebSocket"]) {
+    connectWebSocket();
+  } else {
+    appendMessage({message: "Your browser does not support WebSockets."});
+  }
+};
+</script>
 </body>
 </html>
 
