@@ -372,7 +372,6 @@ func (c *Client) writePump(logger *zerolog.Logger) {
 
 		case <-ticker.C:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			//log.Printf("ping  to: %s", c.id)
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				logger.Log().Time("closetime", time.Now()).
 					Str("error", fmt.Sprintf("c.conn.WriteMessage error: %v", err)).Msg("")
