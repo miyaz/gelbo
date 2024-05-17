@@ -380,7 +380,7 @@ func (c *Client) writePump(logger *zerolog.Logger) {
 				c.hub.broadcast <- []byte(fmt.Sprintf("Disconnected due to [%v] in WriteMessage", err))
 				return
 			}
-			logger.Log().Time("pingtime", time.Now()).Msg("")
+			//logger.Log().Time("pingtime", time.Now()).Msg("")
 
 		}
 	}
