@@ -270,6 +270,10 @@ window.onload = () => {
     row.appendChild(cell2);
     row.appendChild(cell3);
     appendRow(row);
+
+    if (message.indexOf("Disconnected due to") !== -1) {
+      lineThroughClientId(clientId);
+    }
   }
 
   const clearConnInfo = () => {
@@ -278,6 +282,15 @@ window.onload = () => {
     }
     while (connMsg.firstChild) {
       connMsg.removeChild(connMsg.firstChild);
+    }
+  };
+
+  const lineThroughClientId = (clientId) => {
+    const tblBody = document.getElementById("tbody");
+    for (let i = 0, rowlen = tblBody.rows.length; i < rowlen; i++) {
+      if (clientId === tblBody.rows[i].cells[1].innerText) {
+        tblBody.rows[i].cells[1].style.textDecoration = "line-through";
+      }
     }
   };
 
@@ -310,6 +323,7 @@ window.onload = () => {
     };
     conn.onclose = (evt) => {
       appendMessage({message: "Connection closed."});
+      lineThroughClientId(myInfo.clientId);
       conn = null;
       if (connInfo.firstChild) {
         connInfo.firstChild.style.textDecoration = "line-through";
