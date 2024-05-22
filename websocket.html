@@ -233,7 +233,7 @@ window.onload = () => {
     const splitHops = myInfo.clientId.split(",");
     const wsServer = splitHops[splitHops.length-1];
     const item = document.createElement("div");
-    item.style.fontSize = "12px";
+    item.style.fontSize = "0.8rem";
     item.style.backgroundColor = myInfo.color;
     item.style.marginLeft = "10px";
     item.style.padding = "4px";
@@ -264,6 +264,7 @@ window.onload = () => {
     cell1.appendChild(document.createTextNode(new Date(sendTime).toISOString()));
     cell2.appendChild(document.createTextNode(clientId));
     cell3.appendChild(document.createTextNode(message));
+    cell2.style.fontSize = "0.8em";
     cell2.style.backgroundColor = color;
     cell2.style.color = fgGrays.includes(color) ? '#cccccc' : 'black';
     row.appendChild(cell1);
@@ -329,7 +330,7 @@ window.onload = () => {
         connInfo.firstChild.style.textDecoration = "line-through";
       }
       const item = document.createElement("div");
-      item.style.fontSize = "18px";
+      item.style.fontSize = "1.2rem";
       item.style.marginLeft = "10px";
       item.innerText = "Disconnected";
       connMsg.appendChild(item);
