@@ -228,17 +228,16 @@ window.onload = () => {
     if (!parsedData.user) return;
     myInfo.clientId = parsedData.user.clientId;
     myInfo.color = parsedData.user.color;
+    myInfo.hostIp = parsedData.user.hostIp;
 
     const wsURL = getWsURL();
-    const splitHops = myInfo.clientId.split(",");
-    const wsServer = splitHops[splitHops.length-1];
     const item = document.createElement("div");
     item.style.fontSize = "0.8rem";
     item.style.backgroundColor = myInfo.color;
     item.style.marginLeft = "10px";
     item.style.padding = "4px";
     item.style.color = fgGrays.includes(myInfo.color) ? '#cccccc' : 'black';
-    item.innerText = "URL => [" + wsURL + "]  Connected Server => [" + wsServer + "]  ClientId => [" + myInfo.clientId + "]";
+    item.innerText = "URL => [" + wsURL + "]  Connected Server => [" + myInfo.hostIp + "]  ClientId => [" + myInfo.clientId + "]";
     clearConnInfo();
     connInfo.appendChild(item);
   }

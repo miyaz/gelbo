@@ -58,6 +58,7 @@ type WsData struct {
 // User is part of UserList
 type User struct {
 	ClientId string `json:"clientId,omitempty"`
+	HostIp   string `json:"hostIp,omitempty"`
 	Color    string `json:"color,omitempty"`
 }
 
@@ -282,6 +283,7 @@ func (c *Client) readPump(logger *zerolog.Logger) {
 				// reply connection info to the user
 				wsOutData.Type = "yourInfo"
 				wsOutData.User.ClientId = c.id
+				wsOutData.User.HostIp = store.host.IP
 				wsOutData.User.Color = c.color
 				message = convertWsData2JSON(wsOutData)
 				c.send <- message
