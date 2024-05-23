@@ -274,6 +274,10 @@ window.onload = () => {
 
     if (message.indexOf("Disconnected due to") !== -1) {
       lineThroughClientId(clientId);
+      cell3.style.backgroundColor = "#cccccc";
+    }
+    if (message.indexOf("Connection ") !== -1) {
+      cell3.style.backgroundColor = "#cccccc";
     }
   }
 
