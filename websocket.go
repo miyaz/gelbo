@@ -39,7 +39,7 @@ var (
 	space   = []byte{' '}
 
 	//go:embed websocket.html
-	chatHtml string
+	chatHTML string
 )
 
 var upgrader = websocket.Upgrader{
@@ -57,8 +57,8 @@ type WsData struct {
 
 // User is part of UserList
 type User struct {
-	ClientId string `json:"clientId,omitempty"`
-	HostIp   string `json:"hostIp,omitempty"`
+	ClientID string `json:"clientId,omitempty"`
+	HostIP   string `json:"hostIp,omitempty"`
 	Color    string `json:"color,omitempty"`
 }
 
@@ -143,10 +143,10 @@ func chatPageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Content-Length", strconv.Itoa(len(chatHtml)))
-	fmt.Fprint(w, chatHtml)
+	w.Header().Set("Content-Length", strconv.Itoa(len(chatHTML)))
+	fmt.Fprint(w, chatHTML)
 
-	httpLog(reqtime, int64(len(chatHtml)), http.StatusOK, r)
+	httpLog(reqtime, int64(len(chatHTML)), http.StatusOK, r)
 }
 
 func wsLogger(r *http.Request) *zerolog.Logger {
@@ -206,10 +206,9 @@ func getRandomColor() string {
 	if len(diffColors) == 0 {
 		randIdx := rand.Intn(len(defColors))
 		return defColors[randIdx]
-	} else {
-		randIdx := rand.Intn(len(diffColors))
-		return diffColors[randIdx]
 	}
+	randIdx := rand.Intn(len(diffColors))
+	return diffColors[randIdx]
 }
 
 // subtraction between arrays
@@ -218,7 +217,7 @@ func diffSlice[T comparable](slice1, slice2 []T) []T {
 	cmpMap := map[T]int{}
 
 	for _, v := range slice2 {
-		cmpMap[v] += 1
+		cmpMap[v]++
 	}
 
 	for _, v := range slice1 {
@@ -230,7 +229,7 @@ func diffSlice[T comparable](slice1, slice2 []T) []T {
 		if t == 1 {
 			delete(cmpMap, v)
 		} else {
-			cmpMap[v] -= 1
+			cmpMap[v]--
 		}
 	}
 	return diffSlice
@@ -265,7 +264,7 @@ func (c *Client) readPump(logger *zerolog.Logger) {
 			wsOutData.Type = "deliverMessage"
 			wsOutData.Message = fmt.Sprintf("Disconnected due to [%v]", err)
 			wsOutData.SendTime = time.Now().UTC().UnixNano() / int64(time.Millisecond)
-			wsOutData.User.ClientId = c.id
+			wsOutData.User.ClientID = c.id
 			wsOutData.User.Color = c.color
 
 			message = convertWsData2JSON(wsOutData)
@@ -282,8 +281,8 @@ func (c *Client) readPump(logger *zerolog.Logger) {
 			if wsInData.Type == "whoAmI" {
 				// reply connection info to the user
 				wsOutData.Type = "yourInfo"
-				wsOutData.User.ClientId = c.id
-				wsOutData.User.HostIp = store.host.IP
+				wsOutData.User.ClientID = c.id
+				wsOutData.User.HostIP = store.host.IP
 				wsOutData.User.Color = c.color
 				message = convertWsData2JSON(wsOutData)
 				c.send <- message
@@ -292,14 +291,14 @@ func (c *Client) readPump(logger *zerolog.Logger) {
 				wsOutData.Type = "deliverMessage"
 				wsOutData.Message = "Connection opened."
 				wsOutData.SendTime = time.Now().UTC().UnixNano() / int64(time.Millisecond)
-				wsOutData.User.ClientId = c.id
+				wsOutData.User.ClientID = c.id
 				wsOutData.User.Color = c.color
 				message = convertWsData2JSON(wsOutData)
 				c.hub.broadcast <- message
 			} else {
 				wsOutData.Message = wsInData.Message
 				wsOutData.SendTime = time.Now().UTC().UnixNano() / int64(time.Millisecond)
-				wsOutData.User.ClientId = c.id
+				wsOutData.User.ClientID = c.id
 				wsOutData.User.Color = c.color
 				if wsInData.Type == "postToChat" {
 					// send chat message to all users
