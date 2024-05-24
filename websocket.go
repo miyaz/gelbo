@@ -49,10 +49,11 @@ var upgrader = websocket.Upgrader{
 
 // WsData is struct(json) of WebSocket communication.
 type WsData struct {
-	Type     string `json:"type"`
-	Message  string `json:"message,omitempty"`
-	SendTime int64  `json:"sendTime,omitempty"`
-	User     User   `json:"user,omitempty"`
+	Type      string `json:"type"`
+	Message   string `json:"message,omitempty"`
+	SendTime  int64  `json:"sendTime,omitempty"`
+	ConnCount int    `json:"connCount,omitempty"`
+	User      User   `json:"user,omitempty"`
 }
 
 // User is part of UserList
@@ -264,6 +265,7 @@ func (c *Client) readPump(logger *zerolog.Logger) {
 			wsOutData.Type = "deliverMessage"
 			wsOutData.Message = fmt.Sprintf("Disconnected due to [%v]", err)
 			wsOutData.SendTime = time.Now().UTC().UnixNano() / int64(time.Millisecond)
+			wsOutData.ConnCount = len(c.hub.clients) - 1
 			wsOutData.User.ClientID = c.id
 			wsOutData.User.Color = c.color
 
@@ -291,6 +293,7 @@ func (c *Client) readPump(logger *zerolog.Logger) {
 				wsOutData.Type = "deliverMessage"
 				wsOutData.Message = "Connection opened."
 				wsOutData.SendTime = time.Now().UTC().UnixNano() / int64(time.Millisecond)
+				wsOutData.ConnCount = len(c.hub.clients)
 				wsOutData.User.ClientID = c.id
 				wsOutData.User.Color = c.color
 				message = convertWsData2JSON(wsOutData)
@@ -298,6 +301,7 @@ func (c *Client) readPump(logger *zerolog.Logger) {
 			} else {
 				wsOutData.Message = wsInData.Message
 				wsOutData.SendTime = time.Now().UTC().UnixNano() / int64(time.Millisecond)
+				wsOutData.ConnCount = len(c.hub.clients)
 				wsOutData.User.ClientID = c.id
 				wsOutData.User.Color = c.color
 				if wsInData.Type == "postToChat" {
@@ -366,7 +370,7 @@ func (c *Client) writePump(logger *zerolog.Logger) {
 					Str("error", fmt.Sprintf("conn.NextWriter.Close error: %v", err)).Msg("")
 				// notification connection closed
 				c.closed = true
-				c.hub.broadcast <- []byte(fmt.Sprintf("Disconnected due to [%v] in sNextWriter.Close", err))
+				c.hub.broadcast <- []byte(fmt.Sprintf("Disconnected due to [%v] in NextWriter.Close", err))
 				return
 			}
 			logger.Log().Time("writetime", time.Now()).Int("msgsize", len(string(message))).Msg("")

@@ -40,6 +40,12 @@ body {
   cursor: default;
 }
 
+#conn-count {
+  float: left;
+  padding: 0 0.5em;
+  font-size: 0.8rem;
+}
+
 #chat-table {
   background: white;
   margin: 0;
@@ -116,6 +122,9 @@ tr:last-child td {
 <body>
 <div id="header">
   <div id="title">Gelbo Chat</div>
+  <div id="conn-count">Current Online: 
+    <input type="text" id="count" style="width: 25px; text-align: center;" value="300" disabled />
+  </div>
   <div id="conn-info"></div>
   <div id="conn-msg"></div>
 </div>
@@ -237,7 +246,7 @@ window.onload = () => {
     item.style.marginLeft = "10px";
     item.style.padding = "4px";
     item.style.color = fgGrays.includes(myInfo.color) ? '#cccccc' : 'black';
-    item.innerText = "URL => [" + wsURL + "]  Connected Server => [" + myInfo.hostIp + "]  ClientId => [" + myInfo.clientId + "]";
+    item.innerText = "Connected Server => [" + myInfo.hostIp + "]  ClientId => [" + myInfo.clientId + "]";
     clearConnInfo();
     connInfo.appendChild(item);
   }
@@ -253,6 +262,7 @@ window.onload = () => {
     const clientId = parsedData.user ? parsedData.user.clientId : myInfo.clientId;
     const color = parsedData.user ? parsedData.user.color : myInfo.color;
 
+    updateOnlineCount(parsedData.connCount);
     const row = document.createElement("tr");
     const cell1 = document.createElement("td");
     const cell2 = document.createElement("td");
@@ -278,6 +288,7 @@ window.onload = () => {
     if (message.indexOf("Connection ") !== -1) {
       cell3.style.backgroundColor = "#cccccc";
     }
+    updateOnlineCount(parsedData.connCount);
   }
 
   const clearConnInfo = () => {
@@ -295,6 +306,16 @@ window.onload = () => {
       if (clientId === tblBody.rows[i].cells[1].innerText) {
         tblBody.rows[i].cells[1].style.textDecoration = "line-through";
       }
+    }
+  };
+
+  const updateOnlineCount = (connCount) => {
+    console.log(connCount);
+    const count = document.getElementById("count");
+    if (!connCount || isNaN(connCount)) {
+      count.value = "-";
+    } else {
+      count.value = connCount;
     }
   };
 
