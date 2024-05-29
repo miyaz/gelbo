@@ -23,6 +23,7 @@ func init() {
 	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout")
 	flag.Int64Var(&pingInterval, "wsping", 30, "websocket ping interval")
 	//flag.Int64Var(&maxMessageSize, "wsmaxsize", 1024, "websocket max message size")
+	flag.BoolVar(&execFlag, "exec", false, "enable exec feature")
 	flag.BoolVar(&proxy, "proxy", false, "enable proxy protocol")
 	flag.BoolVar(&noLog, "nolog", false, "disable access logging")
 	flag.Parse()
@@ -36,6 +37,7 @@ func init() {
 		Int("timeout", idleTimeout).
 		Int("wsping", int(pingInterval)).
 		//Int("wsmaxsize", int(maxMessageSize)).
+		Bool("exec", execFlag).
 		Bool("proxy", proxy).
 		Bool("nolog", noLog).Logger()
 

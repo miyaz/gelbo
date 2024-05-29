@@ -30,6 +30,7 @@ var (
 	httpPort    int
 	httpsPort   int
 	noLog       bool
+	execFlag    bool
 	proxy       bool
 	idleTimeout int
 	cw          ConnectionWatcher
@@ -92,8 +93,10 @@ func main() {
 
 	go hub.run()
 	router := http.NewServeMux()
+	if execFlag {
+		router.HandleFunc("/exec/", execHandler)
+	}
 	router.HandleFunc("/stop/", stopHandler)
-	router.HandleFunc("/exec/", execHandler)
 	router.HandleFunc("/env/", envHandler)
 	router.HandleFunc("/chat/", chatPageHandler)
 	router.HandleFunc("/ws/", wsHandler)
