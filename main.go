@@ -29,9 +29,9 @@ import (
 var (
 	httpPort    int
 	httpsPort   int
-	noLog       bool
+	noLogFlag   bool
 	execFlag    bool
-	proxy       bool
+	proxyFlag   bool
 	idleTimeout int
 	cw          ConnectionWatcher
 
@@ -67,7 +67,7 @@ func PPWrapListenAndServe(props *PPWrapListenAndServeProps) error {
 }
 
 func main() {
-	if noLog {
+	if noLogFlag {
 		zerolog.SetGlobalLevel(zerolog.Disabled)
 	}
 	zerolog.TimeFieldFormat = time.RFC3339Nano
@@ -117,7 +117,7 @@ func main() {
 	}
 	go func() {
 		var err error
-		if proxy {
+		if proxyFlag {
 			err = PPWrapListenAndServe(&PPWrapListenAndServeProps{
 				Srv:    tlssrv,
 				UseTLS: true,
@@ -136,7 +136,7 @@ func main() {
 		ErrorLog:    log.New(io.Discard, "", 0),
 	}
 	var err error
-	if proxy {
+	if proxyFlag {
 		err = PPWrapListenAndServe(&PPWrapListenAndServeProps{
 			Srv:    httpSrv,
 			UseTLS: false,

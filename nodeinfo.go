@@ -119,16 +119,16 @@ func (ni *NodeInfo) addActiveConnsELB(remoteAddr string, cnt int64) {
 }
 
 func monitorHandler(w http.ResponseWriter, r *http.Request) {
-	var rawFlg bool
+	var rawFlag bool
 	qsMap := r.URL.Query()
 	for key := range qsMap {
 		if key == "raw" {
-			rawFlg = true
+			rawFlag = true
 			break
 		}
 	}
 	updateNode()
-	if rawFlg {
+	if rawFlag {
 		fmt.Fprintf(w, "\n%s\n", getStoreNodeJSON())
 	} else {
 		fmt.Fprintf(w, "\n%s\n", easeReadJSON(getStoreNodeJSON()))

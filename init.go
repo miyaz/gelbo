@@ -24,8 +24,8 @@ func init() {
 	flag.Int64Var(&pingInterval, "wsping", 30, "websocket ping interval")
 	//flag.Int64Var(&maxMessageSize, "wsmaxsize", 1024, "websocket max message size")
 	flag.BoolVar(&execFlag, "exec", false, "enable exec feature")
-	flag.BoolVar(&proxy, "proxy", false, "enable proxy protocol")
-	flag.BoolVar(&noLog, "nolog", false, "disable access logging")
+	flag.BoolVar(&proxyFlag, "proxy", false, "enable proxy protocol")
+	flag.BoolVar(&noLogFlag, "nolog", false, "disable access logging")
 	flag.Parse()
 	if pingInterval <= 0 {
 		fmt.Printf("invalid value \"%d\" for flag -wsping: zero or less\n", pingInterval)
@@ -38,8 +38,8 @@ func init() {
 		Int("wsping", int(pingInterval)).
 		//Int("wsmaxsize", int(maxMessageSize)).
 		Bool("exec", execFlag).
-		Bool("proxy", proxy).
-		Bool("nolog", noLog).Logger()
+		Bool("proxy", proxyFlag).
+		Bool("nolog", noLogFlag).Logger()
 
 	if metaDataType := getMetaDataType(); metaDataType != "" {
 		zlog.Log().Msg("running on AWS")
