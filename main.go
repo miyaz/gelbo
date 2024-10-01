@@ -296,6 +296,14 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	httpLog(reqtime, respSize, statusCode, r)
 }
 
+func combineValues(input map[string][]string) map[string]string {
+	output := map[string]string{}
+	for key := range input {
+		output[key] = strings.Join(input[key], ", ")
+	}
+	return output
+}
+
 func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
 	//respJSON, _ := json.MarshalIndent(*respInfo, "", "  ")
 	respJSON, _ := jsonMarshalIndent(*respInfo)

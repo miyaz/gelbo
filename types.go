@@ -15,6 +15,8 @@ import (
 
 var store = NewDataStore()
 
+const orSeparator = " or "
+
 // NewDataStore ... create datastore instance
 func NewDataStore() *DataStore {
 	_store := &DataStore{
@@ -232,11 +234,11 @@ func newValidator() map[string]*regexp.Regexp {
 		regexpHeader       = "^([a-zA-Z0-9-]+): .+$"
 		regexpHeaderName   = "^([a-zA-Z0-9-]+)$"
 		regexpStatus       = "^([1-9][0-9]{2})$"
-		regexpHostname     = "^([a-zA-Z0-9-.]+)$"
-		regexpAZone        = "^([a-z]{2}-[a-z]+-[1-9][a-d])$"
-		regexpInstanceType = "^(([a-z0-9]+)\\.([a-z0-9]+))$"
-		regexpIPv4         = "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
-		regexpIPv6         = "^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$"
+		regexpHostname     = "([a-zA-Z0-9-.]+)"
+		regexpAZone        = "([a-z]{2}-[a-z]+-[1-9][a-d])"
+		regexpInstanceType = "(([a-z0-9]+)\\.([a-z0-9]+))"
+		regexpIPv4         = "((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+		regexpIPv6         = "(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"
 		regexpAll          = "^(.*)$"
 	)
 	validator := map[string]*regexp.Regexp{}
@@ -249,27 +251,28 @@ func newValidator() map[string]*regexp.Regexp {
 	validator["delheader"] = regexp.MustCompile(regexpHeaderName)
 	validator["stdout"] = regexp.MustCompile(regexpAll)
 	validator["stderr"] = regexp.MustCompile(regexpAll)
-	validator["ifhost"] = regexp.MustCompile(regexpHostname)
-	validator["ifaz"] = regexp.MustCompile(regexpAZone)
-	validator["iftype"] = regexp.MustCompile(regexpInstanceType)
-	validator["ifhostip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
-	validator["iftargetip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
-	validator["ifproxy1ip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
-	validator["ifproxy2ip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
-	validator["ifproxy3ip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
-	validator["iflasthopip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
-	validator["ifclientip"] = regexp.MustCompile(fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6))
+	validator["ifhost"] = regexp.MustCompile("^(" + regexpHostname + "(" + orSeparator + regexpHostname + ")*)$")
+	validator["ifaz"] = regexp.MustCompile("^(" + regexpAZone + "(" + orSeparator + regexpAZone + ")*)$")
+	validator["iftype"] = regexp.MustCompile("^(" + regexpInstanceType + "(" + orSeparator + regexpInstanceType + ")*)$")
+	regexpIPv4v6 := fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6)
+	validator["ifhostip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	validator["iftargetip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	validator["ifproxy1ip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	validator["ifproxy2ip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	validator["ifproxy3ip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	validator["iflasthopip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	validator["ifclientip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
 	return validator
 }
 
 func (reqInfo *RequestInfo) validateQueryString(mapQs map[string][]string) *QueryString {
 	qs := &QueryString{}
-	for key, value := range combineValues(mapQs) {
+	for key, value := range combineValuesWithOr(mapQs) {
 		if re, ok := store.validator[key]; ok {
 			qs.setValue(key, value)
 			if len(re.FindStringSubmatch(value)) > 0 {
 				if strings.HasPrefix(key, "if") {
-					if reqInfo.getActualValue(key) == value {
+					if judgeActualValue(reqInfo.getActualValue(key), value) {
 						qs.ifMatches = append(qs.ifMatches, key)
 					} else {
 						qs.ifUnmatches = append(qs.ifUnmatches, key)
@@ -285,10 +288,22 @@ func (reqInfo *RequestInfo) validateQueryString(mapQs map[string][]string) *Quer
 	return qs
 }
 
-func combineValues(input map[string][]string) map[string]string {
+func judgeActualValue(actualValue, value string) bool {
+	if strings.Contains(value, orSeparator) {
+		for _, v := range strings.Split(value, orSeparator) {
+			if actualValue == v {
+				return true
+			}
+		}
+		return false
+	}
+	return actualValue == value
+}
+
+func combineValuesWithOr(input map[string][]string) map[string]string {
 	output := map[string]string{}
 	for key := range input {
-		output[key] = strings.Join(input[key], ", ")
+		output[key] = strings.Join(input[key], orSeparator)
 	}
 	return output
 }
