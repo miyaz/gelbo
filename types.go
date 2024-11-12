@@ -117,6 +117,7 @@ type RequestInfo struct {
 	Proxy3IP  string            `json:"proxy3ip,omitempty"`
 	LastHopIP string            `json:"lasthopip,omitempty"`
 	TargetIP  string            `json:"targetip"`
+	MtlsCert  string            `json:"mtlscert,omitempty"`
 }
 
 // Direction ... information of directions

@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
@@ -21,6 +23,7 @@ import (
 
 	_ "embed"
 
+	"github.com/grantae/certinfo"
 	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/rs/zerolog"
 	"golang.org/x/net/http2"
@@ -256,12 +259,17 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 
 	proto, _ := r.Context().Value("proto").(string)
 	queryStr, _ := url.QueryUnescape(r.URL.Query().Encode())
+	reqHeaders := combineValues(r.Header)
 	reqInfo := RequestInfo{
 		Proto:  proto,
 		Method: r.Method,
 		Path:   r.URL.EscapedPath(),
 		Query:  queryStr,
-		Header: combineValues(r.Header),
+		Header: reqHeaders,
+	}
+	// add (decoded) mtls cert text info
+	if mtlsCert := getMtlsCert(reqHeaders); mtlsCert != "" {
+		reqInfo.MtlsCert = decodeMtlsCert(mtlsCert)
 	}
 	reqInfo.Header["Host"] = r.Host
 	reqInfo.setIPAddress(r)
@@ -439,4 +447,52 @@ func getIPAddress() string {
 		}
 	}
 	return currentIP
+}
+
+func getMtlsCert(headers map[string]string) string {
+	for key := range headers {
+		if key == "X-Amzn-Mtls-Clientcert" || key == "X-Amzn-Mtls-Clientcert-Leaf" {
+			if headers[key] != "" {
+				return headers[key]
+			}
+		}
+	}
+	return ""
+}
+
+func decodeMtlsCert(certStr string) string {
+	unescapedCertStr, err := url.PathUnescape(certStr)
+	if err != nil {
+		return "URL decoding error"
+	}
+	certBytes := []byte(unescapedCertStr)
+	certInfo := ""
+	certIndex := 0
+	for {
+		certIndex++
+		certInfo += fmt.Sprintf("== [%d] ============\n", certIndex)
+
+		certBlock, rest := pem.Decode(certBytes)
+		if certBlock == nil {
+			certInfo += "Certificate decoding error"
+			return certInfo
+		}
+		cert, err := x509.ParseCertificate(certBlock.Bytes)
+		if err != nil {
+			certInfo += "Certificate parsing error: " + err.Error()
+			return certInfo
+		}
+		result, err := certinfo.CertificateText(cert)
+		if err != nil {
+			certInfo += "Certificate info converting error: " + err.Error()
+			return certInfo
+		}
+		certInfo += result + "\n"
+		if len(rest) == 0 {
+			break
+		} else {
+			certBytes = rest
+		}
+	}
+	return certInfo
 }
