@@ -1,9 +1,9 @@
-FROM golang:1.23 as builder
+FROM golang:1.23 AS builder
 
 ENV CGO_ENABLED=0
 ENV GOOS=linux
 ENV GOARCH=amd64
-ENV GOPROXY direct
+ENV GOPROXY=direct
 WORKDIR /go/src/work
 
 COPY go.mod go.sum ./
@@ -14,7 +14,7 @@ RUN mkdir -p cert \
  && openssl req -x509 -nodes -newkey rsa:2048 -days 3650 -keyout cert/server-key.pem -out cert/server-cert.pem -subj "/CN=localhost"
 RUN go build -o /go/bin/gelbo -ldflags '-s -w'
 
-FROM alpine as runner
+FROM alpine AS runner
 
 EXPOSE 80
 RUN apk add --no-cache ca-certificates
