@@ -23,9 +23,9 @@ import (
 
 	_ "embed"
 
-	"github.com/grantae/certinfo"
 	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/rs/zerolog"
+	"github.com/smallstep/certinfo"
 	"golang.org/x/net/http2"
 )
 
