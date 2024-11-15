@@ -29,22 +29,12 @@ backend app for testing elb
    aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws/h0g2h5b7
    ```
 
-1. build
+1. build & push
 
    ```
-   docker build -t gelbo .
-   ```
-
-1. tagging
-
-   ```
-   docker tag gelbo:latest public.ecr.aws/h0g2h5b7/gelbo:latest
-   ```
-
-1. push
-
-   ```
-   docker push public.ecr.aws/h0g2h5b7/gelbo:latest
+   docker buildx create --name gelbo --platform amd64,arm64 --bootstrap --use
+   docker buildx build --platform linux/amd64,linux/arm64 -t public.ecr.aws/h0g2h5b7/gelbo:latest --push .
+   docker buildx rm gelbo
    ```
 
 1. ecr logout
