@@ -176,6 +176,7 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 	case http.StateActive:
 		atomic.AddInt64(&cw.active, 1)
 		remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), 1)
+		atomic.AddInt64(&cs.reuse, 1)
 	case http.StateIdle:
 		atomic.AddInt64(&cw.active, -1)
 		remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), -1)
@@ -394,6 +395,10 @@ func httpLog(reqtime time.Time, respSize int64, statusCode int, r *http.Request)
 	remoteAddr := extractIPAddress(r.RemoteAddr)
 	reqSize, _ := io.Copy(io.Discard, r.Body)
 
+	var reuse int64
+	if cs, ok := csMaps.get(r.RemoteAddr); ok {
+		reuse = atomic.LoadInt64(&cs.reuse)
+	}
 	// request logging
 	restime := time.Now()
 	logger = logger.With().
@@ -408,6 +413,7 @@ func httpLog(reqtime time.Time, respSize int64, statusCode int, r *http.Request)
 		Int("status", statusCode).
 		Time("time", restime).
 		Dur("duration", restime.Sub(reqtime)).
+		Int64("reuse", reuse).
 		Logger()
 	logger.Log().Msg("")
 }
