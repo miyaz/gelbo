@@ -310,9 +310,9 @@ func combineValuesWithOr(input map[string][]string) map[string]string {
 }
 
 func (reqInfo *RequestInfo) setIPAddress(r *http.Request) {
-	conn, ok := conns.get(r.RemoteAddr)
+	cs, ok := csMaps.get(r.RemoteAddr)
 	if ok {
-		reqInfo.TargetIP = extractIPAddress(conn.LocalAddr().String())
+		reqInfo.TargetIP = extractIPAddress(cs.conn.LocalAddr().String())
 	} else {
 		reqInfo.TargetIP = extractIPAddress(store.host.IP)
 	}
@@ -467,35 +467,51 @@ func (reqInfo *RequestInfo) getActualValue(key string) (ret string) {
 	return
 }
 
-var conns = NewConnectionMap()
+var csMaps = NewConnStateMap()
 
-// ConnectionMap ... map of connections with exclusive control
-type ConnectionMap struct {
+// ConnState ... store connection and some state/attributes
+type ConnState struct {
 	*sync.RWMutex
-	m map[string]net.Conn
+	conn      net.Conn
+	reuse     int64
+	prevState http.ConnState
+	curState  http.ConnState
 }
 
-// NewConnectionMap ... create ConnectionMap instance
-func NewConnectionMap() *ConnectionMap {
-	return &ConnectionMap{&sync.RWMutex{}, make(map[string]net.Conn)}
+func (cs *ConnState) updateState(state http.ConnState) {
+	cs.Lock()
+	defer cs.Unlock()
+	cs.prevState = cs.curState
+	cs.curState = state
 }
 
-func (cm *ConnectionMap) set(k string, v net.Conn) {
-	cm.Lock()
-	defer cm.Unlock()
-	cm.m[k] = v
+// ConnStateMap ... map of connections with exclusive control
+type ConnStateMap struct {
+	*sync.RWMutex
+	m map[string]*ConnState
 }
 
-func (cm *ConnectionMap) get(k string) (net.Conn, bool) {
-	cm.RLock()
-	defer cm.RUnlock()
-	v, ok := cm.m[k]
+// NewConnStateMap ... create ConnStateMap instance
+func NewConnStateMap() *ConnStateMap {
+	return &ConnStateMap{&sync.RWMutex{}, make(map[string]*ConnState)}
+}
+
+func (csm *ConnStateMap) set(k string, v net.Conn) {
+	csm.Lock()
+	defer csm.Unlock()
+	// set var[reuse] to -1 as initial value because it will be set to 0 the first time it is used
+	csm.m[k] = &ConnState{&sync.RWMutex{}, v, -1, http.StateNew, http.StateNew}
+}
+func (csm *ConnStateMap) get(k string) (*ConnState, bool) {
+	csm.RLock()
+	defer csm.RUnlock()
+	v, ok := csm.m[k]
 	return v, ok
 }
-func (cm *ConnectionMap) del(k string) {
-	cm.Lock()
-	defer cm.Unlock()
-	delete(cm.m, k)
+func (csm *ConnStateMap) del(k string) {
+	csm.Lock()
+	defer csm.Unlock()
+	delete(csm.m, k)
 }
 
 var remoteNodes = NewRemoteNodeMap()

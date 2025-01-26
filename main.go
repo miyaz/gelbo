@@ -158,30 +158,41 @@ type ConnectionWatcher struct {
 
 // OnStateChange ... records open connections in response to connection
 func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) {
-	switch state {
-	case http.StateNew:
+	if state == http.StateNew {
+		if _, ok := csMaps.get(conn.RemoteAddr().String()); !ok {
+			csMaps.set(conn.RemoteAddr().String(), conn)
+		}
 		atomic.AddInt64(&cw.total, 1)
 		remoteNodes.addTotalConns(extractIPAddress(conn.RemoteAddr().String()), 1)
+		return
+	}
+
+	cs, ok := csMaps.get(conn.RemoteAddr().String())
+	if !ok {
+		return
+	}
+	cs.updateState(state)
+	switch state {
 	case http.StateActive:
-		if _, ok := conns.get(conn.RemoteAddr().String()); !ok {
-			conns.set(conn.RemoteAddr().String(), conn)
-			atomic.AddInt64(&cw.active, 1)
-			remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), 1)
-		}
+		atomic.AddInt64(&cw.active, 1)
+		remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), 1)
 	case http.StateIdle:
-		if _, ok := conns.get(conn.RemoteAddr().String()); ok {
-			conns.del(conn.RemoteAddr().String())
-			atomic.AddInt64(&cw.active, -1)
-			remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), -1)
-		}
-	case http.StateHijacked, http.StateClosed:
-		if _, ok := conns.get(conn.RemoteAddr().String()); ok {
-			conns.del(conn.RemoteAddr().String())
+		atomic.AddInt64(&cw.active, -1)
+		remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), -1)
+	case http.StateHijacked:
+		atomic.AddInt64(&cw.active, -1)
+		remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), -1)
+		atomic.AddInt64(&cw.total, -1)
+		remoteNodes.addTotalConns(extractIPAddress(conn.RemoteAddr().String()), -1)
+		csMaps.del(conn.RemoteAddr().String())
+	case http.StateClosed:
+		if cs.prevState == http.StateActive {
 			atomic.AddInt64(&cw.active, -1)
 			remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), -1)
 		}
 		remoteNodes.addTotalConns(extractIPAddress(conn.RemoteAddr().String()), -1)
 		atomic.AddInt64(&cw.total, -1)
+		csMaps.del(conn.RemoteAddr().String())
 	}
 }
 
