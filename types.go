@@ -143,6 +143,7 @@ type QueryString struct {
 	Status      string `json:"status,omitempty"`
 	AddHeader   string `json:"addheader,omitempty"`
 	DelHeader   string `json:"delheader,omitempty"`
+	Chunk       string `json:"chunk,omitempty"`
 	Stdout      string `json:"stdout,omitempty"`
 	Stderr      string `json:"stderr,omitempty"`
 	actions     []string
@@ -177,6 +178,8 @@ func (qs *QueryString) getValue(key string) (ret string) {
 		ret = qs.AddHeader
 	case "delheader":
 		ret = qs.DelHeader
+	case "chunk":
+		ret = qs.Chunk
 	case "stdout":
 		ret = qs.Stdout
 	case "stderr":
@@ -201,6 +204,8 @@ func (qs *QueryString) setValue(key, value string) {
 		qs.AddHeader = value
 	case "delheader":
 		qs.DelHeader = value
+	case "chunk":
+		qs.Chunk = value
 	case "stdout":
 		qs.Stdout = value
 	case "stderr":
@@ -232,9 +237,10 @@ func newValidator() map[string]*regexp.Regexp {
 	const (
 		regexpPercent      = "^(100|[0-9]{1,2})$"
 		regexpNumRange     = "^([0-9]+)(?:-([0-9]+))?$"
+		regexpStatus       = "^([1-9][0-9]{2})$"
 		regexpHeader       = "^([a-zA-Z0-9-]+): .+$"
 		regexpHeaderName   = "^([a-zA-Z0-9-]+)$"
-		regexpStatus       = "^([1-9][0-9]{2})$"
+		regexpModeOnOff    = "^(on|off)$"
 		regexpHostname     = "([a-zA-Z0-9-.]+)"
 		regexpAZone        = "([a-z]{2}-[a-z]+-[1-9][a-d])"
 		regexpInstanceType = "(([a-z0-9]+)\\.([a-z0-9]+))"
@@ -250,6 +256,7 @@ func newValidator() map[string]*regexp.Regexp {
 	validator["status"] = regexp.MustCompile(regexpStatus)
 	validator["addheader"] = regexp.MustCompile(regexpHeader)
 	validator["delheader"] = regexp.MustCompile(regexpHeaderName)
+	validator["chunk"] = regexp.MustCompile(regexpModeOnOff)
 	validator["stdout"] = regexp.MustCompile(regexpAll)
 	validator["stderr"] = regexp.MustCompile(regexpAll)
 	validator["ifhost"] = regexp.MustCompile("^(" + regexpHostname + "(" + orSeparator + regexpHostname + ")*)$")

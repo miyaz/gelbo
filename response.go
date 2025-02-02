@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -17,31 +16,29 @@ const (
 )
 
 func writeResponse(w http.ResponseWriter, respSize int, respJSON []byte) error {
-	fw := bufio.NewWriter(w)
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		return fmt.Errorf("expected http.ResponseWriter to be an http.Flusher")
+	}
 	randSrc := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	respJSON = append(respJSON, '\n', '\n')
 	respJSONLength := len(respJSON)
 	if respSize <= respJSONLength {
-		fw.Write(respJSON[0:respSize])
+		fmt.Fprintf(w, "%s", respJSON[0:respSize])
 	} else {
-		fw.Write(respJSON)
+		fmt.Fprintf(w, "%s", respJSON)
 		respSize = respSize - respJSONLength
 		loopCount := respSize / loopUnit
 		remainder := respSize % loopUnit
 		for i := 0; i < loopCount; i++ {
-			fw.Write(randBytes(randSrc, loopUnit-1))
-			fw.Write([]byte("\n"))
+			fmt.Fprintf(w, "%s\n", randBytes(randSrc, loopUnit-1))
 		}
 		if remainder != 0 {
-			fw.Write(randBytes(randSrc, remainder))
+			fmt.Fprintf(w, "%s", randBytes(randSrc, remainder))
 		}
 	}
-
-	err := fw.Flush()
-	if err != nil {
-		return fmt.Errorf("failed to writeResponse: %w", err)
-	}
+	flusher.Flush()
 	return nil
 }
 

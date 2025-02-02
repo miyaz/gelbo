@@ -359,6 +359,11 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
 		if arrayContains(respInfo.Direction.Input.actions, "delheader") {
 			headerMap.del(respInfo.Direction.Result.getValue("delheader"))
 		}
+		if arrayContains(respInfo.Direction.Input.actions, "chunk") {
+			if respInfo.Direction.Result.getValue("chunk") == "on" {
+				w.Header().Del("Content-Length")
+			}
+		}
 		if arrayContains(respInfo.Direction.Input.actions, "stdout") {
 			fmt.Printf("%s\n", respInfo.Direction.Result.getValue("stdout"))
 		}
