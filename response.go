@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -16,6 +17,35 @@ const (
 )
 
 func writeResponse(w http.ResponseWriter, respSize int, respJSON []byte) error {
+	fw := bufio.NewWriter(w)
+	randSrc := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	respJSON = append(respJSON, '\n', '\n')
+	respJSONLength := len(respJSON)
+	if respSize <= respJSONLength {
+		fw.Write(respJSON[0:respSize])
+	} else {
+		fw.Write(respJSON)
+		respSize = respSize - respJSONLength
+		loopCount := respSize / loopUnit
+		remainder := respSize % loopUnit
+		for i := 0; i < loopCount; i++ {
+			fw.Write(randBytes(randSrc, loopUnit-1))
+			fw.Write([]byte("\n"))
+		}
+		if remainder != 0 {
+			fw.Write(randBytes(randSrc, remainder))
+		}
+	}
+
+	err := fw.Flush()
+	if err != nil {
+		return fmt.Errorf("failed to writeResponse: %w", err)
+	}
+	return nil
+}
+
+func writeChunkedResponse(w http.ResponseWriter, respSize int, respJSON []byte) error {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		return fmt.Errorf("expected http.ResponseWriter to be an http.Flusher")

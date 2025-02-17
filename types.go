@@ -205,7 +205,11 @@ func (qs *QueryString) setValue(key, value string) {
 	case "delheader":
 		qs.DelHeader = value
 	case "chunk":
-		qs.Chunk = value
+		if value == "" {
+			qs.Chunk = "chunk"
+		} else {
+			qs.Chunk = value
+		}
 	case "stdout":
 		qs.Stdout = value
 	case "stderr":
@@ -256,7 +260,7 @@ func newValidator() map[string]*regexp.Regexp {
 	validator["status"] = regexp.MustCompile(regexpStatus)
 	validator["addheader"] = regexp.MustCompile(regexpHeader)
 	validator["delheader"] = regexp.MustCompile(regexpHeaderName)
-	validator["chunk"] = regexp.MustCompile(regexpModeOnOff)
+	validator["chunk"] = regexp.MustCompile(regexpAll)
 	validator["stdout"] = regexp.MustCompile(regexpAll)
 	validator["stderr"] = regexp.MustCompile(regexpAll)
 	validator["ifhost"] = regexp.MustCompile("^(" + regexpHostname + "(" + orSeparator + regexpHostname + ")*)$")
@@ -442,6 +446,8 @@ func (qs *QueryString) getActionValue(key string) (ret string) {
 			}
 			ret = strconv.Itoa(minValue + rand.Intn(maxValue-minValue+1))
 		}
+	} else if key == "chunk" {
+		ret = "chunked when using HTTP/1.1"
 	} else {
 		ret = qs.getValue(key)
 	}

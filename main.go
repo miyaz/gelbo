@@ -331,6 +331,7 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(respSize))
 	statusCode := http.StatusOK
+	chunkFlag := false
 	if respInfo.Direction.Input.needsAction() {
 		if arrayContains(respInfo.Direction.Input.actions, "sleep") {
 			sleep, _ := strconv.Atoi(respInfo.Direction.Result.getValue("sleep"))
@@ -360,9 +361,8 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
 			headerMap.del(respInfo.Direction.Result.getValue("delheader"))
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "chunk") {
-			if respInfo.Direction.Result.getValue("chunk") == "on" {
-				w.Header().Del("Content-Length")
-			}
+			chunkFlag = true
+			w.Header().Del("Content-Length")
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "stdout") {
 			fmt.Printf("%s\n", respInfo.Direction.Result.getValue("stdout"))
@@ -375,7 +375,13 @@ func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
 		w.Header().Add(key, value)
 	}
 	w.WriteHeader(statusCode)
-	if err := writeResponse(w, respSize, respJSON); err != nil {
+	var err error
+	if chunkFlag && r.Proto == "HTTP/1.1" {
+		err = writeChunkedResponse(w, respSize, respJSON)
+	} else {
+		err = writeResponse(w, respSize, respJSON)
+	}
+	if err != nil {
 		fmt.Println(err)
 	}
 	return int64(respSize), statusCode
