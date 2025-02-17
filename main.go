@@ -307,8 +307,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	respInfo.Direction.Result = resultQs
 
 	reqSize, _ := io.Copy(io.Discard, r.Body)
-	respSize, statusCode := execAction(w, &respInfo)
-
+	respSize, statusCode := execAction(w, r, &respInfo)
 	store.node.reflectRequest(reqSize, respSize)
 	remoteAddr := extractIPAddress(r.RemoteAddr)
 	remoteNodes.m[remoteAddr].reflectRequest(reqSize, respSize)
@@ -324,8 +323,7 @@ func combineValues(input map[string][]string) map[string]string {
 	return output
 }
 
-func execAction(w http.ResponseWriter, respInfo *ResponseInfo) (int64, int) {
-	//respJSON, _ := json.MarshalIndent(*respInfo, "", "  ")
+func execAction(w http.ResponseWriter, r *http.Request, respInfo *ResponseInfo) (int64, int) {
 	respJSON, _ := jsonMarshalIndent(*respInfo)
 	respSize := len(respJSON)
 	w.Header().Set("Content-Type", "application/json")
