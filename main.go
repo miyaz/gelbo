@@ -97,14 +97,14 @@ func main() {
 	go hub.run()
 	router := http.NewServeMux()
 	if execFlag {
-		router.HandleFunc("/exec/", execHandler)
+		router.HandleFunc("/exec/", handlerWrapper(execHandler))
 	}
 	router.HandleFunc("/stop/", stopHandler)
-	router.HandleFunc("/env/", envHandler)
-	router.HandleFunc("/chat/", chatPageHandler)
+	router.HandleFunc("/env/", handlerWrapper(envHandler))
+	router.HandleFunc("/chat/", handlerWrapper(chatPageHandler))
 	router.HandleFunc("/ws/", wsHandler)
 	router.HandleFunc("/monitor/", monitorHandler)
-	router.HandleFunc("/", defaultHandler)
+	router.HandleFunc("/", handlerWrapper(defaultHandler))
 	h2cWrapper := &HandlerH2C{
 		Handler:  router,
 		H2Server: &http2.Server{},
@@ -158,16 +158,18 @@ type ConnectionWatcher struct {
 
 // OnStateChange ... records open connections in response to connection
 func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) {
+	remoteAddr := conn.RemoteAddr().String()
 	if state == http.StateNew {
-		if _, ok := csMaps.get(conn.RemoteAddr().String()); !ok {
-			csMaps.set(conn.RemoteAddr().String(), conn)
+		if _, ok := csMaps.get(remoteAddr); ok {
+			csMaps.del(remoteAddr)
 		}
+		csMaps.set(remoteAddr, conn)
 		atomic.AddInt64(&cw.total, 1)
-		remoteNodes.addTotalConns(extractIPAddress(conn.RemoteAddr().String()), 1)
+		remoteNodes.addTotalConns(extractIPAddress(remoteAddr), 1)
 		return
 	}
 
-	cs, ok := csMaps.get(conn.RemoteAddr().String())
+	cs, ok := csMaps.get(remoteAddr)
 	if !ok {
 		return
 	}
@@ -175,25 +177,22 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 	switch state {
 	case http.StateActive:
 		atomic.AddInt64(&cw.active, 1)
-		remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), 1)
-		atomic.AddInt64(&cs.reuse, 1)
+		remoteNodes.addActiveConns(extractIPAddress(remoteAddr), 1)
 	case http.StateIdle:
 		atomic.AddInt64(&cw.active, -1)
-		remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), -1)
+		remoteNodes.addActiveConns(extractIPAddress(remoteAddr), -1)
 	case http.StateHijacked:
 		atomic.AddInt64(&cw.active, -1)
-		remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), -1)
+		remoteNodes.addActiveConns(extractIPAddress(remoteAddr), -1)
 		atomic.AddInt64(&cw.total, -1)
-		remoteNodes.addTotalConns(extractIPAddress(conn.RemoteAddr().String()), -1)
-		csMaps.del(conn.RemoteAddr().String())
+		remoteNodes.addTotalConns(extractIPAddress(remoteAddr), -1)
 	case http.StateClosed:
 		if cs.prevState == http.StateActive {
 			atomic.AddInt64(&cw.active, -1)
-			remoteNodes.addActiveConns(extractIPAddress(conn.RemoteAddr().String()), -1)
+			remoteNodes.addActiveConns(extractIPAddress(remoteAddr), -1)
 		}
-		remoteNodes.addTotalConns(extractIPAddress(conn.RemoteAddr().String()), -1)
+		remoteNodes.addTotalConns(extractIPAddress(remoteAddr), -1)
 		atomic.AddInt64(&cw.total, -1)
-		csMaps.del(conn.RemoteAddr().String())
 	}
 }
 
@@ -205,9 +204,20 @@ func (cw *ConnectionWatcher) getActiveConns() int64 {
 	return atomic.LoadInt64(&cw.active)
 }
 
-func execHandler(w http.ResponseWriter, r *http.Request) {
-	reqtime := time.Now()
+func handlerWrapper(fn http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reuse int64
+		if cs, ok := csMaps.get(r.RemoteAddr); ok {
+			reuse = atomic.AddInt64(&cs.reuse, 1)
+		}
+		httpLogger, _ := r.Context().Value("logger").(*HttpLogger)
+		httpLogger.init(r, reuse)
+		fn(w, r)
+		httpLogger.log()
+	}
+}
 
+func execHandler(w http.ResponseWriter, r *http.Request) {
 	qsMap := r.URL.Query()
 	var respStrs []string
 	for key, values := range qsMap {
@@ -236,12 +246,11 @@ func execHandler(w http.ResponseWriter, r *http.Request) {
 	respBody := strings.Join(respStrs, "")
 	fmt.Fprintf(w, "%s", respBody)
 
-	httpLog(reqtime, int64(len(respBody)), http.StatusOK, r)
+	setRespSizeForLogger(int64(len(respBody)), r)
+	setStatusForLogger(http.StatusOK, r)
 }
 
 func envHandler(w http.ResponseWriter, r *http.Request) {
-	reqtime := time.Now()
-
 	qsMap := r.URL.Query()
 	var respStrs []string
 	for key, values := range qsMap {
@@ -259,7 +268,8 @@ func envHandler(w http.ResponseWriter, r *http.Request) {
 	respBody := strings.Join(respStrs, "")
 	fmt.Fprintf(w, "%s", respBody)
 
-	httpLog(reqtime, int64(len(respBody)), http.StatusOK, r)
+	setRespSizeForLogger(int64(len(respBody)), r)
+	setStatusForLogger(http.StatusOK, r)
 }
 
 func stopHandler(w http.ResponseWriter, r *http.Request) {
@@ -267,8 +277,6 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
-	reqtime := time.Now()
-
 	proto, _ := r.Context().Value("proto").(string)
 	queryStr, _ := url.QueryUnescape(r.URL.Query().Encode())
 	reqHeaders := combineValues(r.Header)
@@ -311,8 +319,8 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	store.node.reflectRequest(reqSize, respSize)
 	remoteAddr := extractIPAddress(r.RemoteAddr)
 	remoteNodes.m[remoteAddr].reflectRequest(reqSize, respSize)
-
-	httpLog(reqtime, respSize, statusCode, r)
+	setRespSizeForLogger(respSize, r)
+	setStatusForLogger(statusCode, r)
 }
 
 func combineValues(input map[string][]string) map[string]string {
@@ -393,38 +401,6 @@ func getClientIPAddress(r *http.Request) (clientIP string) {
 		clientIP = extractIPAddress(xff[0])
 	}
 	return
-}
-
-func httpLog(reqtime time.Time, respSize int64, statusCode int, r *http.Request) {
-	proto, _ := r.Context().Value("proto").(string)
-	logger := zerolog.New(os.Stdout).With().Time("reqtime", reqtime).Str("proto", proto).Logger()
-
-	queryStr, _ := url.QueryUnescape(r.URL.Query().Encode())
-	remotePort := extractPort(r.RemoteAddr)
-	remoteAddr := extractIPAddress(r.RemoteAddr)
-	reqSize, _ := io.Copy(io.Discard, r.Body)
-
-	var reuse int64
-	if cs, ok := csMaps.get(r.RemoteAddr); ok {
-		reuse = atomic.LoadInt64(&cs.reuse)
-	}
-	// request logging
-	restime := time.Now()
-	logger = logger.With().
-		Str("method", r.Method).
-		Str("path", r.URL.EscapedPath()).
-		Str("qstr", queryStr).
-		Str("clientip", getClientIPAddress(r)).
-		Str("srcip", remoteAddr).
-		Int("srcport", remotePort).
-		Int64("reqsize", reqSize).
-		Int64("size", respSize).
-		Int("status", statusCode).
-		Time("time", restime).
-		Dur("duration", restime.Sub(reqtime)).
-		Int64("reuse", reuse).
-		Logger()
-	logger.Log().Msg("")
 }
 
 func loadTLSConfig() *tls.Config {

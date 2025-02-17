@@ -482,9 +482,9 @@ func (reqInfo *RequestInfo) getActualValue(key string) (ret string) {
 
 var csMaps = NewConnStateMap()
 
-// ConnState ... store connection and some state/attributes
+// ConnState ... store connection state and some attributes
 type ConnState struct {
-	*sync.RWMutex
+	mu        *sync.RWMutex
 	conn      net.Conn
 	reuse     int64
 	prevState http.ConnState
@@ -492,8 +492,8 @@ type ConnState struct {
 }
 
 func (cs *ConnState) updateState(state http.ConnState) {
-	cs.Lock()
-	defer cs.Unlock()
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
 	cs.prevState = cs.curState
 	cs.curState = state
 }
@@ -512,8 +512,13 @@ func NewConnStateMap() *ConnStateMap {
 func (csm *ConnStateMap) set(k string, v net.Conn) {
 	csm.Lock()
 	defer csm.Unlock()
-	// set var[reuse] to -1 as initial value because it will be set to 0 the first time it is used
-	csm.m[k] = &ConnState{&sync.RWMutex{}, v, -1, http.StateNew, http.StateNew}
+	csm.m[k] = &ConnState{
+		mu:        &sync.RWMutex{},
+		conn:      v,
+		reuse:     -1, // set var[reuse] to -1 as initial value because it will be set to 0 the first time it is used
+		prevState: http.StateNew,
+		curState:  http.StateNew,
+	}
 }
 func (csm *ConnStateMap) get(k string) (*ConnState, bool) {
 	csm.RLock()

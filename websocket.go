@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/http"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -131,37 +130,22 @@ func (h *Hub) run() {
 }
 
 func chatPageHandler(w http.ResponseWriter, r *http.Request) {
-	reqtime := time.Now()
-
 	if r.URL.Path != "/chat/" {
 		w.WriteHeader(http.StatusNotFound)
-		httpLog(reqtime, 0, http.StatusNotFound, r)
+		setStatusForLogger(http.StatusNotFound, r)
 		return
 	}
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		httpLog(reqtime, 0, http.StatusMethodNotAllowed, r)
+		setStatusForLogger(http.StatusMethodNotAllowed, r)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Length", strconv.Itoa(len(chatHTML)))
 	fmt.Fprint(w, chatHTML)
 
-	httpLog(reqtime, int64(len(chatHTML)), http.StatusOK, r)
-}
-
-func wsLogger(r *http.Request) *zerolog.Logger {
-	proto, _ := r.Context().Value("proto").(string)
-	remotePort := extractPort(r.RemoteAddr)
-	remoteAddr := extractIPAddress(r.RemoteAddr)
-	logger := zerolog.New(os.Stdout).With().
-		Time("conntime", time.Now()).
-		Str("proto", proto).
-		Str("clientip", getClientIPAddress(r)).
-		Str("srcip", remoteAddr).
-		Int("srcport", remotePort).
-		Logger()
-	return &logger
+	setRespSizeForLogger(int64(len(chatHTML)), r)
+	setStatusForLogger(http.StatusOK, r)
 }
 
 // wsHandler handles websocket requests from the peer.
