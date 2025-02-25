@@ -410,7 +410,7 @@ ip-172-31-42-159.ap-northeast-1.compute.internal
 ### Description
 
 * Stop the container by using /stop/.
-* Restart automatically if you specify '--restart=always- when running docker run.
+* Restart automatically if you specify '--restart=always' when running docker run.
 * You can use this to intentionally bring down the process at any time, such as when verifying the behavior of Auto Scaling self-healing.
 
 ## Statistics Confirmation
