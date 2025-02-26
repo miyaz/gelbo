@@ -146,6 +146,7 @@ type QueryString struct {
 	Chunk       string `json:"chunk,omitempty"`
 	Stdout      string `json:"stdout,omitempty"`
 	Stderr      string `json:"stderr,omitempty"`
+	Disconnect  string `json:"disconnect,omitempty"`
 	actions     []string
 	ifMatches   []string
 	ifUnmatches []string
@@ -184,6 +185,8 @@ func (qs *QueryString) getValue(key string) (ret string) {
 		ret = qs.Stdout
 	case "stderr":
 		ret = qs.Stderr
+	case "disconnect":
+		ret = qs.Disconnect
 	}
 	return
 }
@@ -214,6 +217,8 @@ func (qs *QueryString) setValue(key, value string) {
 		qs.Stdout = value
 	case "stderr":
 		qs.Stderr = value
+	case "disconnect":
+		qs.Disconnect = value
 	case "ifclientip":
 		qs.IfClientIP = value
 	case "ifproxy1ip":
@@ -244,7 +249,7 @@ func newValidator() map[string]*regexp.Regexp {
 		regexpStatus       = "^([1-9][0-9]{2})$"
 		regexpHeader       = "^([a-zA-Z0-9-]+): .+$"
 		regexpHeaderName   = "^([a-zA-Z0-9-]+)$"
-		regexpModeOnOff    = "^(on|off)$"
+		regexpDisconnect   = "^(fin|rst)$"
 		regexpHostname     = "([a-zA-Z0-9-.]+)"
 		regexpAZone        = "([a-z]{2}-[a-z]+-[1-9][a-d])"
 		regexpInstanceType = "(([a-z0-9]+)\\.([a-z0-9]+))"
@@ -263,6 +268,7 @@ func newValidator() map[string]*regexp.Regexp {
 	validator["chunk"] = regexp.MustCompile(regexpAll)
 	validator["stdout"] = regexp.MustCompile(regexpAll)
 	validator["stderr"] = regexp.MustCompile(regexpAll)
+	validator["disconnect"] = regexp.MustCompile(regexpDisconnect)
 	validator["ifhost"] = regexp.MustCompile("^(" + regexpHostname + "(" + orSeparator + regexpHostname + ")*)$")
 	validator["ifaz"] = regexp.MustCompile("^(" + regexpAZone + "(" + orSeparator + regexpAZone + ")*)$")
 	validator["iftype"] = regexp.MustCompile("^(" + regexpInstanceType + "(" + orSeparator + regexpInstanceType + ")*)$")
