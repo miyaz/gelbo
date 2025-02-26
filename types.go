@@ -553,14 +553,12 @@ func (rnm *RemoteNodeMap) addTotalConns(remoteAddr string, cnt int64) {
 		rnm.m[remoteAddr] = NewNodeInfo()
 		rnm.m[remoteAddr].CreatedAt = now
 	}
-	rnm.m[remoteAddr].UpdatedAt = now
-	rnm.m[remoteAddr].TotalConns += cnt
+	rnm.m[remoteAddr].addTotalConns(cnt)
 }
 func (rnm *RemoteNodeMap) addActiveConns(remoteAddr string, cnt int64) {
 	rnm.Lock()
 	defer rnm.Unlock()
-	rnm.m[remoteAddr].UpdatedAt = time.Now().UnixNano()
-	rnm.m[remoteAddr].ActiveConns += cnt
+	rnm.m[remoteAddr].addActiveConns(cnt)
 }
 
 var headerMap = NewHeaderMap()

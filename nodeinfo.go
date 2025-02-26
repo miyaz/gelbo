@@ -47,18 +47,6 @@ func (ni *NodeInfo) getUpdatedAt() int64 {
 	defer ni.RUnlock()
 	return ni.UpdatedAt
 }
-func (ni *NodeInfo) updateConns() {
-	ni.Lock()
-	defer ni.Unlock()
-	ni.ActiveConns = cw.getActiveConns()
-	ni.TotalConns = cw.getTotalConns()
-}
-func (ni *NodeInfo) updateResources() {
-	ni.Lock()
-	defer ni.Unlock()
-	ni.CPU = store.resource.CPU.getCurrent()
-	ni.Memory = store.resource.Memory.getCurrent()
-}
 func (ni *NodeInfo) reflectRequest(receivedBytes, sentBytes int64) {
 	ni.Lock()
 	defer ni.Unlock()
@@ -83,39 +71,18 @@ func (ni *NodeInfo) setCreatedAt(_time int64) {
 	defer ni.Unlock()
 	ni.CreatedAt = _time
 }
-func (ni *NodeInfo) setNow() {
+
+func (ni *NodeInfo) addTotalConns(cnt int64) {
 	ni.Lock()
 	defer ni.Unlock()
 	ni.UpdatedAt = time.Now().UnixNano()
+	ni.TotalConns += cnt
 }
-func (ni *NodeInfo) clearConns() {
+func (ni *NodeInfo) addActiveConns(cnt int64) {
 	ni.Lock()
 	defer ni.Unlock()
-	ni.TotalConns = 0
-	ni.ActiveConns = 0
-	if ni.ELBs != nil {
-		for _, elb := range ni.ELBs {
-			elb.TotalConns = 0
-			elb.ActiveConns = 0
-		}
-	}
-}
-func (ni *NodeInfo) addTotalConnsELB(remoteAddr string, cnt int64) {
-	ni.Lock()
-	defer ni.Unlock()
-	now := time.Now().UnixNano()
-	if _, ok := ni.ELBs[remoteAddr]; !ok {
-		ni.ELBs[remoteAddr] = &NodeInfo{}
-		ni.ELBs[remoteAddr].CreatedAt = now
-	}
-	ni.ELBs[remoteAddr].UpdatedAt = now
-	ni.ELBs[remoteAddr].TotalConns += cnt
-}
-func (ni *NodeInfo) addActiveConnsELB(remoteAddr string, cnt int64) {
-	ni.Lock()
-	defer ni.Unlock()
-	ni.ELBs[remoteAddr].UpdatedAt = time.Now().UnixNano()
-	ni.ELBs[remoteAddr].TotalConns += cnt
+	ni.UpdatedAt = time.Now().UnixNano()
+	ni.ActiveConns += cnt
 }
 
 func monitorHandler(w http.ResponseWriter, r *http.Request) {
@@ -136,9 +103,13 @@ func monitorHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateNode() {
-	store.node.updateResources()
-	store.node.updateConns()
-	store.node.setNow()
+	store.node.Lock()
+	defer store.node.Unlock()
+	store.node.CPU = store.resource.CPU.getCurrent()
+	store.node.Memory = store.resource.Memory.getCurrent()
+	store.node.ActiveConns = cw.getActiveConns()
+	store.node.TotalConns = cw.getTotalConns()
+	store.node.UpdatedAt = time.Now().UnixNano()
 }
 
 // ELBNode ... temp struct for json.MarshalIndent
