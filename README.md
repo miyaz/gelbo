@@ -186,11 +186,9 @@ docker run -d --restart=always -p 80:80 -p 443:443 --name gelbo public.ecr.aws/h
     * When using ALB/CLB, if there is X-Forwarded-For header, it retrieves the IP address of the connection origin (the private IP address of the ELB node).
   * targetip: the IP address of the target.
     * When using Docker, it retrieves the IP address of the container. Refer to host.ip for the IP address of the EC2 instance host.
-* ```
-Displays the contents of the certificate in .request.mtlscert field, If a header for mTLS (“X-Amzn-Mtls-Clientcert” or “X-Amzn-Mtls-Clientcert-Leaf”) is included.
-
-* command e.x.)  curl --key client_key.pem --cert client_cert.pem "https://{gelbo domain}/" | jq -r .request.mtlscert
-* output in a format similar to result of `openSSL x509 -text -noout -in {cert_file}`
+* Displays the contents of the certificate in .request.mtlscert field, If a header for mTLS (“X-Amzn-Mtls-Clientcert” or “X-Amzn-Mtls-Clientcert-Leaf”) is included.
+  * command e.x.) `curl --key client_key.pem --cert client_cert.pem "https://{gelbo domain}/" | jq -r .request.mtlscert`
+  * output in a format similar to result of `openSSL x509 -text -noout -in {cert_file}`
 * Displays the host information:
   * Displays the name and IP address of the host in host.name and host.ip. 
   * Displays host.az (AvailabilityZone) and host.type (InstanceType) if the information can be retrieved from IMDS (169.254.169.254),
