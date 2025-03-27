@@ -106,6 +106,9 @@ Currently, gelbo supports the following options:
   * The keep-alive timeout value. (default: 65).
   * TCP connection will be disconnected after the specified time.
   * TCP connection will be kept alive if the value is 0 (gelbo will not disconnect).
+* -interval {interval seconds}
+  * TCP keep-alive probe interval value. (default: 15).
+  * TCP keep-alive probe is not sent if the value is 0.
 * -wsping {WebSocket ping frame transmission interval (seconds))
   * The interval to send Ping frames to the client on the WebSocket connection (default: 30).
   * Specify a value greater than 0.

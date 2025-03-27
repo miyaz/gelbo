@@ -30,13 +30,14 @@ import (
 )
 
 var (
-	httpPort    int
-	httpsPort   int
-	noLogFlag   bool
-	execFlag    bool
-	proxyFlag   bool
-	idleTimeout int
-	cw          ConnectionWatcher
+	httpPort      int
+	httpsPort     int
+	noLogFlag     bool
+	execFlag      bool
+	proxyFlag     bool
+	idleTimeout   int
+	probeInterval int
+	cw            ConnectionWatcher
 
 	//go:embed cert/server-cert.pem
 	certData []byte
@@ -166,6 +167,24 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 		csMaps.set(remoteAddr, conn)
 		atomic.AddInt64(&cw.total, 1)
 		remoteNodes.addTotalConns(extractIPAddress(remoteAddr), 1)
+		// tcp keepalive setting
+		if probeInterval != 15 { // when other than default value
+			tcpConn := getTCPConn(conn)
+			if tcpConn != nil {
+				if probeInterval == 0 {
+					tcpConn.SetKeepAlive(false)
+				} else {
+					tcpConn.SetKeepAliveConfig(
+						net.KeepAliveConfig{
+							Enable:   true,
+							Idle:     time.Duration(probeInterval) * time.Second,
+							Interval: time.Duration(probeInterval) * time.Second,
+							// Count:    9,
+						},
+					)
+				}
+			}
+		}
 		return
 	}
 
@@ -194,6 +213,21 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 		remoteNodes.addTotalConns(extractIPAddress(remoteAddr), -1)
 		atomic.AddInt64(&cw.total, -1)
 	}
+}
+
+func getTCPConn(conn net.Conn) *net.TCPConn {
+	tcpConn, ok := conn.(*net.TCPConn)
+	if ok {
+		return tcpConn
+	} else {
+		if tlsConn, ok := conn.(*tls.Conn); ok {
+			tcpConn, ok := tlsConn.NetConn().(*net.TCPConn)
+			if ok {
+				return tcpConn
+			}
+		}
+	}
+	return nil
 }
 
 func (cw *ConnectionWatcher) getTotalConns() int64 {

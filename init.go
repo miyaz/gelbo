@@ -20,13 +20,18 @@ var (
 func init() {
 	flag.IntVar(&httpPort, "http", 80, "http port")
 	flag.IntVar(&httpsPort, "https", 443, "https port")
-	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout")
+	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout. if 0 is specified, no limit")
+	flag.IntVar(&probeInterval, "interval", 15, "tcp-keepalive probe interval. if 0 is specified, probe is not sent")
 	flag.Int64Var(&pingInterval, "wsping", 30, "websocket ping interval")
 	//flag.Int64Var(&maxMessageSize, "wsmaxsize", 1024, "websocket max message size")
 	flag.BoolVar(&execFlag, "exec", false, "enable exec feature")
 	flag.BoolVar(&proxyFlag, "proxy", false, "enable proxy protocol")
 	flag.BoolVar(&noLogFlag, "nolog", false, "disable access logging")
 	flag.Parse()
+	if probeInterval < 0 {
+		fmt.Printf("invalid value \"%d\" for flag -interval: less than zero\n", probeInterval)
+		os.Exit(2)
+	}
 	if pingInterval <= 0 {
 		fmt.Printf("invalid value \"%d\" for flag -wsping: zero or less\n", pingInterval)
 		os.Exit(2)
@@ -35,6 +40,7 @@ func init() {
 		Int("http", httpPort).
 		Int("https", httpsPort).
 		Int("timeout", idleTimeout).
+		Int("interval", probeInterval).
 		Int("wsping", int(pingInterval)).
 		//Int("wsmaxsize", int(maxMessageSize)).
 		Bool("exec", execFlag).
