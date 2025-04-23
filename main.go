@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"math/rand"
 	"net"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -359,7 +361,7 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 
 func combineValues(input map[string][]string) map[string]string {
 	output := map[string]string{}
-	for key := range input {
+	for _, key := range slices.Sorted(maps.Keys(input)) {
 		output[key] = strings.Join(input[key], ", ")
 	}
 	return output
