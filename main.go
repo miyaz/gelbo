@@ -38,6 +38,7 @@ var (
 	idleTimeout   int
 	probeInterval int
 	cw            ConnectionWatcher
+	randSrc       *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	//go:embed cert/server-cert.pem
 	certData []byte
