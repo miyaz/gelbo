@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+option go_package = "./";
+
+package elbgrpc;
+
+service GelboService {
+  rpc Unary (GelboRequest) returns (GelboResponse);
+  rpc ServerStream (GelboRequest) returns (stream GelboResponse);
+  rpc ClientStream (stream GelboRequest) returns (GelboResponse);
+  rpc BidiStream (stream GelboRequest) returns (stream GelboResponse);
+}
+
+message GelboRequest {
+	string cpu = 1;
+	string memory = 2;
+	string sleep = 3;
+	string size = 4;
+	string code = 5;
+  string addheader = 6;
+  string delheader = 7;
+  string addtrailer = 8;
+  string deltrailer = 9;
+  string stdout = 10;
+  string stderr = 11;
+  string repeat = 12;
+  string dataonly = 13;
+  string noop = 14;
+  string ifclientip = 15;
+  string ifproxy1ip = 16;
+  string ifproxy2ip = 17;
+  string ifproxy3ip = 18;
+  string iflasthopip = 19;
+  string iftargetip = 20;
+  string ifhostip = 21;
+  string ifhost = 22;
+  string ifaz = 23;
+  string iftype = 24;
+}
+
+message GelboResponse {
+	HostInfo host = 1;
+  ResourceInfo resource = 2;
+  RequestInfo request = 3;
+  Direction direction = 4;
+  string data = 5;
+}
+
+message HostInfo {
+  string name = 1;
+  string ip = 2;
+  string az = 3;
+  string type = 4;
+}
+
+message ResourceUsage {
+  double target = 1;
+  double current = 2;
+}
+
+message ResourceInfo {
+  ResourceUsage cpu = 1;
+  ResourceUsage memory = 2;
+}
+
+message RequestInfo {
+  string protocol = 1;
+  string method = 2;
+  repeated string header = 3;
+  string clientip = 4;
+  string proxy1ip = 5;
+  string proxy2ip = 6;
+  string proxy3ip = 7;
+  string lasthopip = 8;
+  string targetip = 9;
+}
+
+message Direction {
+  repeated string input = 1;
+  repeated string result = 2;
+}

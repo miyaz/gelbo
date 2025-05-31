@@ -20,6 +20,15 @@
 
 ## container image update
 
+1. compile .proto file (only when .proto file is updated)
+
+   ```
+   protoc --proto_path ./grpc/proto \
+      --go_out=grpc/pb/ --go_opt=paths=source_relative \
+      --go-grpc_out=grpc/pb/ --go-grpc_opt=paths=source_relative \
+      gelbo.proto
+   ```
+
 1. ecr login
 
    ```

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"math/rand"
 	"net"
 	"net/http"
@@ -20,11 +21,11 @@ const orSeparator = " or "
 // NewDataStore ... create datastore instance
 func NewDataStore() *DataStore {
 	_store := &DataStore{
-		host:      &HostInfo{},
-		node:      NewNodeInfo(),
-		resource:  NewResourceInfo(),
-		validator: newValidator(),
+		host:     &HostInfo{},
+		node:     NewNodeInfo(),
+		resource: NewResourceInfo(),
 	}
+	_store.validatorForHttp, _store.validatorForGrpc = newValidator()
 	_store.RWMutex = &sync.RWMutex{}
 	return _store
 }
@@ -32,10 +33,11 @@ func NewDataStore() *DataStore {
 // DataStore ... Variables that use mutex
 type DataStore struct {
 	*sync.RWMutex
-	host      *HostInfo
-	node      *NodeInfo
-	resource  *ResourceInfo
-	validator map[string]*regexp.Regexp
+	host             *HostInfo
+	node             *NodeInfo
+	resource         *ResourceInfo
+	validatorForHttp map[string]*regexp.Regexp
+	validatorForGrpc map[string]*regexp.Regexp
 }
 
 func (ds *DataStore) getHostInfo() *HostInfo {
@@ -140,12 +142,18 @@ type Commands struct {
 	Memory      string `json:"memory,omitempty"`
 	Sleep       string `json:"sleep,omitempty"`
 	Size        string `json:"size,omitempty"`
+	Code        string `json:"code,omitempty"`
 	Status      string `json:"status,omitempty"`
 	AddHeader   string `json:"addheader,omitempty"`
 	DelHeader   string `json:"delheader,omitempty"`
+	AddTrailer  string `json:"addtrailer,omitempty"`
+	DelTrailer  string `json:"deltrailer,omitempty"`
 	Chunk       string `json:"chunk,omitempty"`
 	Stdout      string `json:"stdout,omitempty"`
 	Stderr      string `json:"stderr,omitempty"`
+	Repeat      string `json:"repeat,omitempty"`
+	DataOnly    string `json:"dataonly,omitempty"`
+	Noop        string `json:"noop,omitempty"`
 	actions     []string
 	ifMatches   []string
 	ifUnmatches []string
@@ -172,18 +180,30 @@ func (cmds *Commands) getValue(key string) (ret string) {
 		ret = cmds.Sleep
 	case "size":
 		ret = cmds.Size
+	case "code":
+		ret = cmds.Code
 	case "status":
 		ret = cmds.Status
 	case "addheader":
 		ret = cmds.AddHeader
 	case "delheader":
 		ret = cmds.DelHeader
+	case "addtrailer":
+		ret = cmds.AddTrailer
+	case "deltrailer":
+		ret = cmds.DelTrailer
 	case "chunk":
 		ret = cmds.Chunk
 	case "stdout":
 		ret = cmds.Stdout
 	case "stderr":
 		ret = cmds.Stderr
+	case "repeat":
+		ret = cmds.Repeat
+	case "dataonly":
+		ret = cmds.DataOnly
+	case "noop":
+		ret = cmds.Noop
 	}
 	return
 }
@@ -198,18 +218,30 @@ func (cmds *Commands) setValue(key, value string) {
 		cmds.Sleep = value
 	case "size":
 		cmds.Size = value
+	case "code":
+		cmds.Code = value
 	case "status":
 		cmds.Status = value
 	case "addheader":
 		cmds.AddHeader = value
 	case "delheader":
 		cmds.DelHeader = value
+	case "addtrailer":
+		cmds.AddTrailer = value
+	case "deltrailer":
+		cmds.DelTrailer = value
 	case "chunk":
 		cmds.Chunk = value
 	case "stdout":
 		cmds.Stdout = value
 	case "stderr":
 		cmds.Stderr = value
+	case "repeat":
+		cmds.Repeat = value
+	case "dataonly":
+		cmds.DataOnly = value
+	case "noop":
+		cmds.Noop = value
 	case "ifclientip":
 		cmds.IfClientIP = value
 	case "ifproxy1ip":
@@ -233,10 +265,11 @@ func (cmds *Commands) setValue(key, value string) {
 	}
 }
 
-func newValidator() map[string]*regexp.Regexp {
+func newValidator() (map[string]*regexp.Regexp, map[string]*regexp.Regexp) {
 	const (
 		regexpPercent      = "^(100|[0-9]{1,2})$"
 		regexpNumRange     = "^([0-9]+)(?:-([0-9]+))?$"
+		regexpCode         = "^([0-9]|1[0-6])$"
 		regexpStatus       = "^([1-9][0-9]{2})$"
 		regexpHeader       = "^([a-zA-Z0-9-]+): .+$"
 		regexpHeaderName   = "^([a-zA-Z0-9-]+)$"
@@ -248,35 +281,51 @@ func newValidator() map[string]*regexp.Regexp {
 		regexpIPv6         = "(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]).){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"
 		regexpAll          = "^(.*)$"
 	)
-	validator := map[string]*regexp.Regexp{}
-	validator["cpu"] = regexp.MustCompile(regexpPercent)
-	validator["memory"] = regexp.MustCompile(regexpPercent)
-	validator["sleep"] = regexp.MustCompile(regexpNumRange)
-	validator["size"] = regexp.MustCompile(regexpNumRange)
-	validator["status"] = regexp.MustCompile(regexpStatus)
-	validator["addheader"] = regexp.MustCompile(regexpHeader)
-	validator["delheader"] = regexp.MustCompile(regexpHeaderName)
-	validator["chunk"] = regexp.MustCompile(regexpAll)
-	validator["stdout"] = regexp.MustCompile(regexpAll)
-	validator["stderr"] = regexp.MustCompile(regexpAll)
-	validator["ifhost"] = regexp.MustCompile("^(" + regexpHostname + "(" + orSeparator + regexpHostname + ")*)$")
-	validator["ifaz"] = regexp.MustCompile("^(" + regexpAZone + "(" + orSeparator + regexpAZone + ")*)$")
-	validator["iftype"] = regexp.MustCompile("^(" + regexpInstanceType + "(" + orSeparator + regexpInstanceType + ")*)$")
+	vh := map[string]*regexp.Regexp{} // validatorForHttp
+	vg := map[string]*regexp.Regexp{} // validatorForGrpc
+	vh["cpu"] = regexp.MustCompile(regexpPercent)
+	vh["memory"] = regexp.MustCompile(regexpPercent)
+	vh["sleep"] = regexp.MustCompile(regexpNumRange)
+	vh["size"] = regexp.MustCompile(regexpNumRange)
+	vh["status"] = regexp.MustCompile(regexpStatus)
+	vh["addheader"] = regexp.MustCompile(regexpHeader)
+	vh["delheader"] = regexp.MustCompile(regexpHeaderName)
+	vh["chunk"] = regexp.MustCompile(regexpModeOn)
+	vh["stdout"] = regexp.MustCompile(regexpAll)
+	vh["stderr"] = regexp.MustCompile(regexpAll)
+	vh["ifhost"] = regexp.MustCompile("^(" + regexpHostname + "(" + orSeparator + regexpHostname + ")*)$")
+	vh["ifaz"] = regexp.MustCompile("^(" + regexpAZone + "(" + orSeparator + regexpAZone + ")*)$")
+	vh["iftype"] = regexp.MustCompile("^(" + regexpInstanceType + "(" + orSeparator + regexpInstanceType + ")*)$")
 	regexpIPv4v6 := fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6)
-	validator["ifhostip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
-	validator["iftargetip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
-	validator["ifproxy1ip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
-	validator["ifproxy2ip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
-	validator["ifproxy3ip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
-	validator["iflasthopip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
-	validator["ifclientip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
-	return validator
+	vh["ifhostip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	vh["iftargetip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	vh["ifproxy1ip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	vh["ifproxy2ip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	vh["ifproxy3ip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	vh["iflasthopip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	vh["ifclientip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
+	maps.Copy(vg, vh)
+	vg["addtrailer"] = regexp.MustCompile(regexpHeader)
+	vg["deltrailer"] = regexp.MustCompile(regexpHeaderName)
+	vg["code"] = regexp.MustCompile(regexpCode)
+	vg["repeat"] = regexp.MustCompile(regexpNumRange)
+	vg["dataonly"] = regexp.MustCompile(regexpModeOn)
+	vg["noop"] = regexp.MustCompile(regexpModeOn)
+	delete(vg, "status")
+	delete(vg, "chunk")
+	return vh, vg
 }
 
 func (reqInfo *RequestInfo) validateCommands(mapCmds map[string][]string) *Commands {
+	var validator map[string]*regexp.Regexp
+	if strings.HasPrefix(reqInfo.Proto, "grpc") {
+		validator = store.validatorForGrpc
+	} else {
+		validator = store.validatorForHttp
+	}
 	cmds := &Commands{}
 	for key, value := range combineValuesWithOr(mapCmds) {
-		if re, ok := store.validator[key]; ok {
+		if re, ok := validator[key]; ok {
 			cmds.setValue(key, value)
 			if len(re.FindStringSubmatch(value)) > 0 {
 				if strings.HasPrefix(key, "if") {
