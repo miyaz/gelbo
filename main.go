@@ -344,10 +344,10 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 		Direction: Direction{},
 	}
 
-	inputQs := reqInfo.validateQueryString(r.URL.Query())
-	resultQs := inputQs.evaluate(&reqInfo)
-	respInfo.Direction.Input = inputQs
-	respInfo.Direction.Result = resultQs
+	inputCmds := reqInfo.validateCommands(r.URL.Query())
+	resultCmds := inputCmds.evaluate()
+	respInfo.Direction.Input = inputCmds
+	respInfo.Direction.Result = resultCmds
 
 	reqSize, _ := io.Copy(io.Discard, r.Body)
 	respSize, statusCode := execAction(w, r, &respInfo)

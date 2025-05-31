@@ -122,8 +122,8 @@ type RequestInfo struct {
 
 // Direction ... information of directions
 type Direction struct {
-	Input  *QueryString `json:"input"`
-	Result *QueryString `json:"result"`
+	Input  *Commands `json:"input"`
+	Result *Commands `json:"result"`
 }
 
 // ResponseInfo ... information of response
@@ -134,8 +134,8 @@ type ResponseInfo struct {
 	Direction Direction    `json:"direction"`
 }
 
-// QueryString ... QueryString Values
-type QueryString struct {
+// Commands ... Commands Values
+type Commands struct {
 	CPU         string `json:"cpu,omitempty"`
 	Memory      string `json:"memory,omitempty"`
 	Sleep       string `json:"sleep,omitempty"`
@@ -162,78 +162,74 @@ type QueryString struct {
 	IfType      string `json:"iftype,omitempty"`
 }
 
-func (qs *QueryString) getValue(key string) (ret string) {
+func (cmds *Commands) getValue(key string) (ret string) {
 	switch key {
 	case "cpu":
-		ret = qs.CPU
+		ret = cmds.CPU
 	case "memory":
-		ret = qs.Memory
+		ret = cmds.Memory
 	case "sleep":
-		ret = qs.Sleep
+		ret = cmds.Sleep
 	case "size":
-		ret = qs.Size
+		ret = cmds.Size
 	case "status":
-		ret = qs.Status
+		ret = cmds.Status
 	case "addheader":
-		ret = qs.AddHeader
+		ret = cmds.AddHeader
 	case "delheader":
-		ret = qs.DelHeader
+		ret = cmds.DelHeader
 	case "chunk":
-		ret = qs.Chunk
+		ret = cmds.Chunk
 	case "stdout":
-		ret = qs.Stdout
+		ret = cmds.Stdout
 	case "stderr":
-		ret = qs.Stderr
+		ret = cmds.Stderr
 	}
 	return
 }
 
-func (qs *QueryString) setValue(key, value string) {
+func (cmds *Commands) setValue(key, value string) {
 	switch key {
 	case "cpu":
-		qs.CPU = value
+		cmds.CPU = value
 	case "memory":
-		qs.Memory = value
+		cmds.Memory = value
 	case "sleep":
-		qs.Sleep = value
+		cmds.Sleep = value
 	case "size":
-		qs.Size = value
+		cmds.Size = value
 	case "status":
-		qs.Status = value
+		cmds.Status = value
 	case "addheader":
-		qs.AddHeader = value
+		cmds.AddHeader = value
 	case "delheader":
-		qs.DelHeader = value
+		cmds.DelHeader = value
 	case "chunk":
-		if value == "" {
-			qs.Chunk = "chunk"
-		} else {
-			qs.Chunk = value
-		}
+		cmds.Chunk = value
 	case "stdout":
-		qs.Stdout = value
+		cmds.Stdout = value
 	case "stderr":
-		qs.Stderr = value
+		cmds.Stderr = value
 	case "ifclientip":
-		qs.IfClientIP = value
+		cmds.IfClientIP = value
 	case "ifproxy1ip":
-		qs.IfProxy1IP = value
+		cmds.IfProxy1IP = value
 	case "ifproxy2ip":
-		qs.IfProxy2IP = value
+		cmds.IfProxy2IP = value
 	case "ifproxy3ip":
-		qs.IfProxy3IP = value
+		cmds.IfProxy3IP = value
 	case "iflasthopip":
-		qs.IfLasthopIP = value
+		cmds.IfLasthopIP = value
 	case "iftargetip":
-		qs.IfTargetIP = value
+		cmds.IfTargetIP = value
 	case "ifhostip":
-		qs.IfHostIP = value
+		cmds.IfHostIP = value
 	case "ifhost":
-		qs.IfHost = value
+		cmds.IfHost = value
 	case "ifaz":
-		qs.IfAZ = value
+		cmds.IfAZ = value
 	case "iftype":
-		qs.IfType = value
+		cmds.IfType = value
 	}
 }
 
@@ -244,7 +240,7 @@ func newValidator() map[string]*regexp.Regexp {
 		regexpStatus       = "^([1-9][0-9]{2})$"
 		regexpHeader       = "^([a-zA-Z0-9-]+): .+$"
 		regexpHeaderName   = "^([a-zA-Z0-9-]+)$"
-		regexpModeOnOff    = "^(on|off)$"
+		regexpModeOn       = "^(on|1|t|true)$"
 		regexpHostname     = "([a-zA-Z0-9-.]+)"
 		regexpAZone        = "([a-z]{2}-[a-z]+-[1-9][a-d])"
 		regexpInstanceType = "(([a-z0-9]+)\\.([a-z0-9]+))"
@@ -277,27 +273,27 @@ func newValidator() map[string]*regexp.Regexp {
 	return validator
 }
 
-func (reqInfo *RequestInfo) validateQueryString(mapQs map[string][]string) *QueryString {
-	qs := &QueryString{}
-	for key, value := range combineValuesWithOr(mapQs) {
+func (reqInfo *RequestInfo) validateCommands(mapCmds map[string][]string) *Commands {
+	cmds := &Commands{}
+	for key, value := range combineValuesWithOr(mapCmds) {
 		if re, ok := store.validator[key]; ok {
-			qs.setValue(key, value)
+			cmds.setValue(key, value)
 			if len(re.FindStringSubmatch(value)) > 0 {
 				if strings.HasPrefix(key, "if") {
 					if judgeActualValue(reqInfo.getActualValue(key), value) {
-						qs.ifMatches = append(qs.ifMatches, key)
+						cmds.ifMatches = append(cmds.ifMatches, key)
 					} else {
-						qs.ifUnmatches = append(qs.ifUnmatches, key)
+						cmds.ifUnmatches = append(cmds.ifUnmatches, key)
 					}
 				} else {
-					qs.actions = append(qs.actions, key)
+					cmds.actions = append(cmds.actions, key)
 				}
 			} else {
-				qs.invalids = append(qs.invalids, key)
+				cmds.invalids = append(cmds.invalids, key)
 			}
 		}
 	}
-	return qs
+	return cmds
 }
 
 func judgeActualValue(actualValue, value string) bool {
@@ -397,45 +393,45 @@ func splitXFF(xffStr string) []string {
 	return xff
 }
 
-func (qs *QueryString) evaluate(reqInfo *RequestInfo) *QueryString {
-	resultQs := QueryString{}
-	for _, invalid := range qs.invalids {
-		resultQs.setValue(invalid, "invalid")
+func (cmds *Commands) evaluate() *Commands {
+	resultCmds := Commands{}
+	for _, invalid := range cmds.invalids {
+		resultCmds.setValue(invalid, "invalid")
 	}
-	if len(qs.actions) == 0 {
-		return &resultQs
+	if len(cmds.actions) == 0 {
+		return &resultCmds
 	}
-	for _, ifMatch := range qs.ifMatches {
-		resultQs.setValue(ifMatch, "matched")
+	for _, ifMatch := range cmds.ifMatches {
+		resultCmds.setValue(ifMatch, "matched")
 	}
-	for _, ifUnmatch := range qs.ifUnmatches {
-		resultQs.setValue(ifUnmatch, "unmatched")
+	for _, ifUnmatch := range cmds.ifUnmatches {
+		resultCmds.setValue(ifUnmatch, "unmatched")
 	}
 	// action evaluation
-	for _, action := range qs.actions {
-		resultQs.setValue(action, qs.getActionValue(action))
+	for _, action := range cmds.actions {
+		resultCmds.setValue(action, cmds.getActionValue(action))
 	}
-	return &resultQs
+	return &resultCmds
 }
 
-func (qs *QueryString) needsAction() bool {
-	if len(qs.actions) == 0 {
+func (cmds *Commands) needsAction() bool {
+	if len(cmds.actions) == 0 {
 		return false
 	}
-	if len(qs.ifUnmatches) != 0 {
+	if len(cmds.ifUnmatches) != 0 {
 		return false
 	}
-	if len(qs.invalids) != 0 {
+	if len(cmds.invalids) != 0 {
 		return false
 	}
 	return true
 }
 
-func (qs *QueryString) getActionValue(key string) (ret string) {
-	if key == "sleep" || key == "size" {
-		values := strings.Split(qs.getValue(key), "-")
+func (cmds *Commands) getActionValue(key string) (ret string) {
+	if key == "sleep" || key == "size" || key == "repeat" {
+		values := strings.Split(cmds.getValue(key), "-")
 		if len(values) == 1 {
-			ret = qs.getValue(key)
+			ret = cmds.getValue(key)
 		} else {
 			minValue, _ := strconv.Atoi(values[0])
 			maxValue, _ := strconv.Atoi(values[1])
@@ -449,7 +445,7 @@ func (qs *QueryString) getActionValue(key string) (ret string) {
 	} else if key == "chunk" {
 		ret = "chunked when using HTTP/1.1"
 	} else {
-		ret = qs.getValue(key)
+		ret = cmds.getValue(key)
 	}
 	return
 }
