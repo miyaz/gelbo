@@ -32,6 +32,8 @@ import (
 var (
 	httpPort      int
 	httpsPort     int
+	grpcPort      int
+	grpcsPort     int
 	noLogFlag     bool
 	execFlag      bool
 	proxyFlag     bool
@@ -112,7 +114,7 @@ func main() {
 		H2Server: &http2.Server{},
 	}
 
-	tlssrv := &http.Server{
+	httpsSrv := &http.Server{
 		Addr:        ":" + strconv.Itoa(httpsPort),
 		IdleTimeout: time.Duration(idleTimeout) * time.Second,
 		ConnState:   cw.OnStateChange,
@@ -124,11 +126,11 @@ func main() {
 		var err error
 		if proxyFlag {
 			err = PPWrapListenAndServe(&PPWrapListenAndServeProps{
-				Srv:    tlssrv,
+				Srv:    httpsSrv,
 				UseTLS: true,
 			})
 		} else {
-			err = tlssrv.ListenAndServeTLS("", "")
+			err = httpsSrv.ListenAndServeTLS("", "")
 		}
 		log.Fatalln(err)
 	}()
@@ -140,16 +142,20 @@ func main() {
 		Handler:     h2cWrapper,
 		ErrorLog:    log.New(io.Discard, "", 0),
 	}
-	var err error
-	if proxyFlag {
-		err = PPWrapListenAndServe(&PPWrapListenAndServeProps{
-			Srv:    httpSrv,
-			UseTLS: false,
-		})
-	} else {
-		err = httpSrv.ListenAndServe()
-	}
-	log.Fatalln(err)
+	go func() {
+		var err error
+		if proxyFlag {
+			err = PPWrapListenAndServe(&PPWrapListenAndServeProps{
+				Srv:    httpSrv,
+				UseTLS: false,
+			})
+		} else {
+			err = httpSrv.ListenAndServe()
+		}
+		log.Fatalln(err)
+	}()
+
+	startGrpcServer()
 }
 
 // ConnectionWatcher ... connection counter

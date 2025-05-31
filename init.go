@@ -20,9 +20,12 @@ var (
 func init() {
 	flag.IntVar(&httpPort, "http", 80, "http port")
 	flag.IntVar(&httpsPort, "https", 443, "https port")
+	flag.IntVar(&grpcPort, "grpc", 50051, "grpc port")
+	flag.IntVar(&grpcsPort, "grpcs", 50052, "grpcs ([s] means over tls) port")
 	flag.IntVar(&idleTimeout, "timeout", 65, "idle timeout. if 0 is specified, no limit")
 	flag.IntVar(&probeInterval, "interval", 15, "tcp-keepalive probe interval. if 0 is specified, probe is not sent")
-	flag.Int64Var(&pingInterval, "wsping", 30, "websocket ping interval")
+	flag.IntVar(&grpcInterval, "grpcping", 30, "grpc ping frame interval. if 0 is specified, ping frame is not sent")
+	flag.Int64Var(&wsInterval, "wsping", 30, "websocket ping interval")
 	//flag.Int64Var(&maxMessageSize, "wsmaxsize", 1024, "websocket max message size")
 	flag.BoolVar(&execFlag, "exec", false, "enable exec feature")
 	flag.BoolVar(&proxyFlag, "proxy", false, "enable proxy protocol")
@@ -32,16 +35,23 @@ func init() {
 		fmt.Printf("invalid value \"%d\" for flag -interval: less than zero\n", probeInterval)
 		os.Exit(2)
 	}
-	if pingInterval <= 0 {
-		fmt.Printf("invalid value \"%d\" for flag -wsping: zero or less\n", pingInterval)
+	if grpcInterval < 0 {
+		fmt.Printf("invalid value \"%d\" for flag -grpcping: less than zero\n", grpcInterval)
+		os.Exit(2)
+	}
+	if wsInterval <= 0 {
+		fmt.Printf("invalid value \"%d\" for flag -wsping: zero or less\n", wsInterval)
 		os.Exit(2)
 	}
 	zlog := zerolog.New(os.Stderr).Level(zerolog.DebugLevel).With().
 		Int("http", httpPort).
 		Int("https", httpsPort).
+		Int("grpc", grpcPort).
+		Int("grpcs", grpcsPort).
 		Int("timeout", idleTimeout).
 		Int("interval", probeInterval).
-		Int("wsping", int(pingInterval)).
+		Int("grpcping", grpcInterval).
+		Int("wsping", int(wsInterval)).
 		//Int("wsmaxsize", int(maxMessageSize)).
 		Bool("exec", execFlag).
 		Bool("proxy", proxyFlag).
@@ -59,10 +69,10 @@ func init() {
 	}
 
 	hub = newHub()
-	pingPeriod = time.Duration(pingInterval) * time.Second // Send pings to peer with this period. Must be less than pongWait.
-	pongWait = pingPeriod * 10 / 9                         // Time allowed to read the next pong message from the peer.
-	writeWait = 10 * time.Second                           // Time allowed to write a message to the peer.
-	maxMessageSize = 1024                                  // Maximum message size allowed from peer.
+	pingPeriod = time.Duration(wsInterval) * time.Second // Send pings to peer with this period. Must be less than pongWait.
+	pongWait = pingPeriod * 10 / 9                       // Time allowed to read the next pong message from the peer.
+	writeWait = 10 * time.Second                         // Time allowed to write a message to the peer.
+	maxMessageSize = 1024                                // Maximum message size allowed from peer.
 }
 
 func getMetaDataType() string {

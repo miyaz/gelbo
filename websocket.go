@@ -29,7 +29,7 @@ import (
 var (
 	hub            *Hub
 	maxMessageSize int64 // Maximum message size allowed from peer.
-	pingInterval   int64
+	wsInterval     int64
 	writeWait      time.Duration
 	pingPeriod     time.Duration
 	pongWait       time.Duration
