@@ -121,8 +121,12 @@ func (s *grpcServer) ClientStream(stream pb.GelboService_ClientStreamServer) err
 	for {
 		wg.Add(1)
 		req, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			go s.handler(ClientStream, stream.Context(), latestReq, sendChan, errChan, wg)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				go s.handler(ClientStream, stream.Context(), latestReq, sendChan, errChan, wg)
+			} else {
+				errChan <- err
+			}
 			break
 		} else {
 			latestReq = req
