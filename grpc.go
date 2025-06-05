@@ -96,8 +96,8 @@ func (s *grpcServer) Unary(ctx context.Context, req *pb.GelboRequest) (*pb.Gelbo
 	log.SetFlags(log.Lmicroseconds)
 	sendChan := make(chan *pb.GelboResponse)
 	errChan := make(chan error, 1)
-	wg := NewWaitGroup()
-	wg.Add(1)
+	wg := newWaitGroup()
+	wg.add(1)
 
 	go s.handler(Unary, ctx, req, sendChan, errChan, wg)
 
@@ -115,11 +115,11 @@ func (s *grpcServer) ClientStream(stream pb.GelboService_ClientStreamServer) err
 	log.SetFlags(log.Lmicroseconds)
 	sendChan := make(chan *pb.GelboResponse)
 	errChan := make(chan error, 1)
-	wg := NewWaitGroup()
+	wg := newWaitGroup()
 	var latestReq *pb.GelboRequest
 
 	for {
-		wg.Add(1)
+		wg.add(1)
 		req, err := stream.Recv()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -138,7 +138,7 @@ func (s *grpcServer) ClientStream(stream pb.GelboService_ClientStreamServer) err
 			if !ok {
 				return nil
 			}
-			wg.Done()
+			wg.done()
 			err := stream.SendAndClose(resp)
 			return err
 		case err := <-errChan:
@@ -151,13 +151,13 @@ func (s *grpcServer) ServerStream(req *pb.GelboRequest, stream pb.GelboService_S
 	log.SetFlags(log.Lmicroseconds)
 	sendChan := make(chan *pb.GelboResponse)
 	errChan := make(chan error, 1)
-	wg := NewWaitGroup()
-	wg.Add(1)
+	wg := newWaitGroup()
+	wg.add(1)
 
 	go s.handler(ServerStream, stream.Context(), req, sendChan, errChan, wg)
 	go s.sender(stream, sendChan, errChan, wg)
 
-	wg.Wait()
+	wg.wait()
 	close(sendChan)
 	for {
 		select {
@@ -172,7 +172,7 @@ func (s *grpcServer) BidiStream(stream pb.GelboService_BidiStreamServer) error {
 	recvChan := make(chan *pb.GelboRequest)
 	sendChan := make(chan *pb.GelboResponse)
 	errChan := make(chan error)
-	wg := NewWaitGroup()
+	wg := newWaitGroup()
 
 	go s.receiver(stream, recvChan, errChan)
 	go s.sender(stream, sendChan, errChan, wg)
@@ -181,7 +181,7 @@ func (s *grpcServer) BidiStream(stream pb.GelboService_BidiStreamServer) error {
 		select {
 		case req, ok := <-recvChan:
 			if !ok {
-				wg.Wait()
+				wg.wait()
 				select {
 				case err := <-errChan:
 					return err
@@ -190,7 +190,7 @@ func (s *grpcServer) BidiStream(stream pb.GelboService_BidiStreamServer) error {
 					return nil
 				}
 			}
-			wg.Add(1)
+			wg.add(1)
 			go s.handler(BidiStream, stream.Context(), req, sendChan, errChan, wg)
 		case err := <-errChan:
 			return err
@@ -199,7 +199,7 @@ func (s *grpcServer) BidiStream(stream pb.GelboService_BidiStreamServer) error {
 }
 
 func (s *grpcServer) handler(mode int, ctx context.Context, req *pb.GelboRequest, sendChan chan *pb.GelboResponse, errChan chan error, wg *WaitGroup) {
-	reqInfo := NewRequestInfoFromContext(ctx, req)
+	reqInfo := newRequestInfoFromContext(ctx, req)
 	inputCmds := reqInfo.validateCommandsForGrpc(mode, req)
 	resultCmds := inputCmds.evaluate()
 
@@ -208,7 +208,7 @@ func (s *grpcServer) handler(mode int, ctx context.Context, req *pb.GelboRequest
 			if mode == Unary || mode == ClientStream {
 				errChan <- nil
 			}
-			wg.Done()
+			wg.done()
 			return
 		}
 		if inputCmds.Repeat != "" {
@@ -217,17 +217,17 @@ func (s *grpcServer) handler(mode int, ctx context.Context, req *pb.GelboRequest
 				resultCmds.Repeat = strconv.Itoa(repeat)
 				if err := execGrpcAction(reqInfo, inputCmds, resultCmds); err != nil {
 					errChan <- err
-					wg.Done()
+					wg.done()
 					return
 				}
 
-				wg.Add(1)
+				wg.add(1)
 				sendChan <- createResponse(reqInfo, inputCmds, resultCmds)
 				resultCmds = inputCmds.evaluate()
 			}
 		}
 		if err := execGrpcAction(reqInfo, inputCmds, resultCmds); err != nil {
-			wg.Done()
+			wg.done()
 			errChan <- err
 			return
 		}
@@ -348,7 +348,7 @@ func (s *grpcServer) sender(stream interface{}, sendChan chan *pb.GelboResponse,
 			errChan <- err
 			return
 		}
-		wg.Done()
+		wg.done()
 	}
 	errChan <- nil
 }
@@ -409,17 +409,17 @@ type WaitGroup struct {
 	cnt int
 }
 
-func NewWaitGroup() *WaitGroup {
+func newWaitGroup() *WaitGroup {
 	wg := &WaitGroup{mu: &sync.RWMutex{}, wg: &sync.WaitGroup{}}
 	return wg
 }
-func (wg *WaitGroup) Add(num int) {
+func (wg *WaitGroup) add(num int) {
 	wg.mu.Lock()
 	defer wg.mu.Unlock()
 	wg.wg.Add(num)
 	wg.cnt += num
 }
-func (wg *WaitGroup) Done() {
+func (wg *WaitGroup) done() {
 	wg.mu.Lock()
 	defer wg.mu.Unlock()
 	if wg.cnt > 0 {
@@ -427,7 +427,7 @@ func (wg *WaitGroup) Done() {
 		wg.cnt--
 	}
 }
-func (wg *WaitGroup) Finish() {
+func (wg *WaitGroup) finish() {
 	wg.mu.Lock()
 	defer wg.mu.Unlock()
 	for i := 0; i < wg.cnt; i++ {
@@ -435,7 +435,7 @@ func (wg *WaitGroup) Finish() {
 	}
 	wg.cnt = 0
 }
-func (wg *WaitGroup) Wait() {
+func (wg *WaitGroup) wait() {
 	wg.wg.Wait()
 }
 
@@ -481,7 +481,7 @@ func getCodeClass(_code int32) (code codes.Code) {
 	return code
 }
 
-func NewRequestInfoFromContext(ctx context.Context, req *pb.GelboRequest) *RequestInfo {
+func newRequestInfoFromContext(ctx context.Context, req *pb.GelboRequest) *RequestInfo {
 	method, _ := grpc.Method(ctx)
 	reqInfo := &RequestInfo{
 		Method: method,
