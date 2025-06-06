@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 
+	pb "github.com/miyaz/gelbo/grpc/pb"
 	"github.com/rs/zerolog"
+	"google.golang.org/grpc"
 )
 
 type HttpLogger struct {
@@ -84,6 +87,87 @@ func wsLogger(r *http.Request) *zerolog.Logger {
 		Str("clientip", getClientIPAddress(r)).
 		Str("srcip", remoteAddr).
 		Int("srcport", remotePort).
+		Logger()
+	return &logger
+}
+
+type GrpcLogger struct {
+	opentime  time.Time
+	recvtime  time.Time
+	sendtime  time.Time
+	closetime time.Time
+	proto     string
+	mode      string
+	method    string
+	params    string
+	clientip  string
+	srcip     string
+	srcport   int
+}
+
+func initLoggerForUnary(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo) *GrpcLogger {
+	l := &GrpcLogger{}
+	ips := getIPSetFromContext(ctx)
+	l.recvtime = time.Now()
+	l.proto = "grpc"
+	if ips.TargetPort == grpcsPort {
+		l.proto = "grpcs"
+	}
+	l.mode = "unary"
+	l.method = info.FullMethod
+	if params, ok := req.(*pb.GelboRequest); ok {
+		l.params = params.String()
+	}
+	l.clientip = ips.ClientIP
+	l.srcip = ips.SrcIP
+	l.srcport = ips.SrcPort
+	return l
+}
+
+func (l *GrpcLogger) forUnary() *zerolog.Logger {
+	logger := zerolog.New(os.Stdout).With().
+		Time("recvtime", l.recvtime).
+		Str("proto", l.proto).
+		Str("mode", l.mode).
+		Str("method", l.method).
+		Str("params", l.params).
+		Str("clientip", l.clientip).
+		Str("srcip", l.srcip).
+		Int("srcport", l.srcport).
+		Logger()
+	return &logger
+}
+
+func initLoggerForStream(ctx context.Context, info *grpc.StreamServerInfo) *GrpcLogger {
+	l := &GrpcLogger{}
+	ips := getIPSetFromContext(ctx)
+	l.opentime = time.Now()
+	l.proto = "grpc"
+	if ips.TargetPort == grpcsPort {
+		l.proto = "grpcs"
+	}
+	l.mode = "client"
+	if info.IsServerStream && info.IsClientStream {
+		l.mode = "bidirect"
+	} else if info.IsServerStream {
+		l.mode = "server"
+	}
+	l.method = info.FullMethod
+	l.clientip = ips.ClientIP
+	l.srcip = ips.SrcIP
+	l.srcport = ips.SrcPort
+	return l
+}
+
+func (l *GrpcLogger) forStream() *zerolog.Logger {
+	logger := zerolog.New(os.Stdout).With().
+		Time("opentime", l.opentime).
+		Str("proto", l.proto).
+		Str("mode", l.mode).
+		Str("method", l.method).
+		Str("clientip", l.clientip).
+		Str("srcip", l.srcip).
+		Int("srcport", l.srcport).
 		Logger()
 	return &logger
 }

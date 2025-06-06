@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +18,7 @@ import (
 	"time"
 
 	pb "github.com/miyaz/gelbo/grpc/pb"
+	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -38,12 +42,12 @@ var (
 	grpcInterval int
 )
 
-type grpcServer struct {
+type gelboServer struct {
 	pb.UnimplementedGelboServiceServer
 }
 
-func NewGrpcServer() *grpcServer {
-	return &grpcServer{}
+func newGelboServer() *gelboServer {
+	return &gelboServer{}
 }
 
 func startGrpcServer() {
@@ -53,18 +57,24 @@ func startGrpcServer() {
 	kasp := keepalive.ServerParameters{
 		Time: time.Duration(grpcInterval) * time.Second,
 	}
+	gelboSrv1 := newGelboServer()
 	grpcSrv := grpc.NewServer(
 		grpc.KeepaliveEnforcementPolicy(kaep),
 		grpc.KeepaliveParams(kasp),
+		grpc.UnaryInterceptor(gelboSrv1.UnaryInterceptor()),
+		grpc.StreamInterceptor(gelboSrv1.StreamInterceptor()),
 	)
+	gelboSrv2 := newGelboServer()
 	grpcsSrv := grpc.NewServer(
 		grpc.KeepaliveEnforcementPolicy(kaep),
 		grpc.KeepaliveParams(kasp),
 		grpc.Creds(credentials.NewTLS(loadTLSConfig())),
+		grpc.UnaryInterceptor(gelboSrv2.UnaryInterceptor()),
+		grpc.StreamInterceptor(gelboSrv2.StreamInterceptor()),
 	)
 
-	pb.RegisterGelboServiceServer(grpcSrv, NewGrpcServer())
-	pb.RegisterGelboServiceServer(grpcsSrv, NewGrpcServer())
+	pb.RegisterGelboServiceServer(grpcSrv, gelboSrv1)
+	pb.RegisterGelboServiceServer(grpcsSrv, gelboSrv2)
 
 	// enable server reflection
 	reflection.Register(grpcSrv)
@@ -92,8 +102,7 @@ func startGrpcServer() {
 	}
 }
 
-func (s *grpcServer) Unary(ctx context.Context, req *pb.GelboRequest) (*pb.GelboResponse, error) {
-	log.SetFlags(log.Lmicroseconds)
+func (s *gelboServer) Unary(ctx context.Context, req *pb.GelboRequest) (*pb.GelboResponse, error) {
 	sendChan := make(chan *pb.GelboResponse)
 	errChan := make(chan error, 1)
 	wg := newWaitGroup()
@@ -111,8 +120,7 @@ func (s *grpcServer) Unary(ctx context.Context, req *pb.GelboRequest) (*pb.Gelbo
 	}
 }
 
-func (s *grpcServer) ClientStream(stream pb.GelboService_ClientStreamServer) error {
-	log.SetFlags(log.Lmicroseconds)
+func (s *gelboServer) ClientStream(stream pb.GelboService_ClientStreamServer) error {
 	sendChan := make(chan *pb.GelboResponse)
 	errChan := make(chan error, 1)
 	wg := newWaitGroup()
@@ -147,8 +155,7 @@ func (s *grpcServer) ClientStream(stream pb.GelboService_ClientStreamServer) err
 	}
 }
 
-func (s *grpcServer) ServerStream(req *pb.GelboRequest, stream pb.GelboService_ServerStreamServer) error {
-	log.SetFlags(log.Lmicroseconds)
+func (s *gelboServer) ServerStream(req *pb.GelboRequest, stream pb.GelboService_ServerStreamServer) error {
 	sendChan := make(chan *pb.GelboResponse)
 	errChan := make(chan error, 1)
 	wg := newWaitGroup()
@@ -167,8 +174,7 @@ func (s *grpcServer) ServerStream(req *pb.GelboRequest, stream pb.GelboService_S
 	}
 }
 
-func (s *grpcServer) BidiStream(stream pb.GelboService_BidiStreamServer) error {
-	log.SetFlags(log.Lmicroseconds)
+func (s *gelboServer) BidiStream(stream pb.GelboService_BidiStreamServer) error {
 	recvChan := make(chan *pb.GelboRequest)
 	sendChan := make(chan *pb.GelboResponse)
 	errChan := make(chan error)
@@ -198,8 +204,8 @@ func (s *grpcServer) BidiStream(stream pb.GelboService_BidiStreamServer) error {
 	}
 }
 
-func (s *grpcServer) handler(mode int, ctx context.Context, req *pb.GelboRequest, sendChan chan *pb.GelboResponse, errChan chan error, wg *WaitGroup) {
-	reqInfo := newRequestInfoFromContext(ctx, req)
+func (s *gelboServer) handler(mode int, ctx context.Context, req *pb.GelboRequest, sendChan chan *pb.GelboResponse, errChan chan error, wg *WaitGroup) {
+	reqInfo := newRequestInfoFromContext(ctx)
 	inputCmds := reqInfo.validateCommandsForGrpc(mode, req)
 	resultCmds := inputCmds.evaluate()
 
@@ -323,7 +329,7 @@ type IStream interface {
 	Recv() (*pb.GelboRequest, error)
 }
 
-func (s *grpcServer) receiver(stream interface{}, recvChan chan *pb.GelboRequest, errChan chan error) {
+func (s *gelboServer) receiver(stream interface{}, recvChan chan *pb.GelboRequest, errChan chan error) {
 	var recvStream IStream
 	recvStream = stream.(IStream)
 	for {
@@ -340,7 +346,7 @@ func (s *grpcServer) receiver(stream interface{}, recvChan chan *pb.GelboRequest
 	}
 }
 
-func (s *grpcServer) sender(stream interface{}, sendChan chan *pb.GelboResponse, errChan chan error, wg *WaitGroup) {
+func (s *gelboServer) sender(stream interface{}, sendChan chan *pb.GelboResponse, errChan chan error, wg *WaitGroup) {
 	var sendStream IStream
 	sendStream = stream.(IStream)
 	for msg := range sendChan {
@@ -401,7 +407,123 @@ func createResponse(reqInfo *RequestInfo, inputCmds, resultCmds *Commands) *pb.G
 	}
 }
 
-// === utilities & small parts
+// === interceptor
+
+func (s *gelboServer) UnaryInterceptor() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		reqsize := getBinarySize(req)
+		logger := initLoggerForUnary(ctx, req, info)
+
+		resp, err := handler(ctx, req)
+		if err != nil {
+			var code int32 = 2 // 2 = codes.Unknown
+			if stat, ok := status.FromError(err); ok {
+				code = stat.Proto().Code
+			}
+			logger.forUnary().Log().
+				Int64("reqsize", reqsize).
+				Int32("code", code).
+				Time("sendtime", time.Now()).
+				Dur("duration", time.Now().Sub(logger.recvtime)).
+				Str("error", fmt.Sprintf("%v", err)).Msg("")
+		} else {
+			logger.forUnary().Log().
+				Int64("reqsize", reqsize).
+				Int64("size", getBinarySize(resp)).
+				Int32("code", 0). // 0 = codes.OK
+				Time("sendtime", time.Now()).
+				Dur("duration", time.Now().Sub(logger.recvtime)).Msg("")
+		}
+		return resp, err
+	}
+}
+
+type streamWrapper struct {
+	grpc.ServerStream
+	logger *zerolog.Logger
+}
+
+func (s *streamWrapper) RecvMsg(req interface{}) error {
+	err := s.ServerStream.RecvMsg(req)
+	if err == nil {
+		s.logger.Log().
+			Str("action", "recv").
+			Time("recvtime", time.Now()).
+			Int64("reqsize", getBinarySize(req)).Msg("")
+	} else if errors.Is(err, io.EOF) {
+		s.logger.Log().
+			Str("action", "recv_end").
+			Time("recvtime", time.Now()).Msg("")
+	} else {
+		s.logger.Log().
+			Str("action", "recv").
+			Time("recvtime", time.Now()).
+			Int64("reqsize", getBinarySize(req)).
+			Str("error", fmt.Sprintf("%v", err)).Msg("")
+	}
+	return err
+}
+
+func (s *streamWrapper) SendMsg(resp interface{}) error {
+	err := s.ServerStream.SendMsg(resp)
+	if err != nil {
+		var code int32 = 2 // 2 = codes.Unknown
+		if stat, ok := status.FromError(err); ok {
+			code = stat.Proto().Code
+		}
+		s.logger.Log().
+			Str("action", "send").
+			Int32("code", code).
+			Time("sendtime", time.Now()).
+			Int64("size", getBinarySize(resp)).
+			Str("error", fmt.Sprintf("%v", err)).Msg("")
+	} else {
+		s.logger.Log().
+			Str("action", "send").
+			Int32("code", 0). // 0 = codes.OK
+			Time("sendtime", time.Now()).
+			Int64("size", getBinarySize(resp)).Msg("")
+	}
+	return err
+}
+
+func (s *gelboServer) StreamInterceptor() grpc.StreamServerInterceptor {
+	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		logger := initLoggerForStream(ss.Context(), info).forStream()
+		logger.Log().Str("action", "open").Msg("")
+
+		err := handler(srv, &streamWrapper{ss, logger})
+		if err != nil {
+			var code int32 = 2 // 2 = codes.Unknown
+			if stat, ok := status.FromError(err); ok {
+				code = stat.Proto().Code
+			}
+			logger.Log().
+				Str("action", "close").
+				Int32("code", code).
+				Time("closetime", time.Now()).
+				Str("error", fmt.Sprintf("%v", err)).Msg("")
+		} else {
+			logger.Log().
+				Str("action", "close").
+				Int32("code", 0). // 0 = codes.OK
+				Time("closetime", time.Now()).Msg("")
+		}
+		return err
+	}
+}
+
+func getBinarySize(val interface{}) int64 {
+	var buff bytes.Buffer
+	enc := gob.NewEncoder(&buff)
+	err := enc.Encode(val)
+	if err != nil {
+		return 0
+	}
+	return int64(binary.Size(buff.Bytes()))
+}
+
+// === other utilities & small parts
 
 type WaitGroup struct {
 	mu  *sync.RWMutex
@@ -481,46 +603,74 @@ func getCodeClass(_code int32) (code codes.Code) {
 	return code
 }
 
-func newRequestInfoFromContext(ctx context.Context, req *pb.GelboRequest) *RequestInfo {
+func newRequestInfoFromContext(ctx context.Context) *RequestInfo {
 	method, _ := grpc.Method(ctx)
 	reqInfo := &RequestInfo{
 		Method: method,
 	}
-	xffStr := ""
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		reqInfo.Header = combineValues(md)
-		if xffArray, ok := md["x-forwarded-for"]; ok {
-			xffStr = xffArray[0]
-		}
-	}
-	if pr, ok := peer.FromContext(ctx); ok {
-		setIPAddress(reqInfo, pr, xffStr)
-		reqInfo.Proto = "grpc"
-		if extractPort(pr.LocalAddr.String()) == grpcsPort {
-			reqInfo.Proto = "grpcs"
-		}
+	ips := getIPSetFromContext(ctx)
+	setIPAddress(reqInfo, ips)
+	reqInfo.Proto = "grpc"
+	if ips.TargetPort == grpcsPort {
+		reqInfo.Proto = "grpcs"
 	}
 	return reqInfo
 }
 
-func setIPAddress(reqInfo *RequestInfo, pr *peer.Peer, xffStr string) {
-	reqInfo.TargetIP = extractIPAddress(pr.LocalAddr.String())
+type ipSet struct {
+	SrcIP      string
+	SrcPort    int
+	TargetIP   string
+	TargetPort int
+	ClientIP   string
+	LastHopIP  string
+	Proxy1IP   string
+	Proxy2IP   string
+	Proxy3IP   string
+}
+
+func getIPSetFromContext(ctx context.Context) *ipSet {
+	ips := &ipSet{}
+	xffStr := ""
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if xffArray, ok := md["x-forwarded-for"]; ok {
+			xffStr = xffArray[0]
+		}
+	}
 	xff := splitXFF(xffStr)
 	if len(xff) >= 2 {
-		reqInfo.Proxy1IP = extractIPAddress(xff[1])
+		ips.Proxy1IP = extractIPAddress(xff[1])
 	}
 	if len(xff) >= 3 {
-		reqInfo.Proxy2IP = extractIPAddress(xff[2])
+		ips.Proxy2IP = extractIPAddress(xff[2])
 	}
 	if len(xff) >= 4 {
-		reqInfo.Proxy3IP = extractIPAddress(xff[3])
+		ips.Proxy3IP = extractIPAddress(xff[3])
 	}
-	if len(xff) == 0 {
-		reqInfo.ClientIP = extractIPAddress(pr.Addr.String())
-	} else {
-		reqInfo.ClientIP = extractIPAddress(xff[0])
-		reqInfo.LastHopIP = extractIPAddress(pr.Addr.String())
+	if pr, ok := peer.FromContext(ctx); ok {
+		localAddr := pr.LocalAddr.String()
+		remoteAddr := pr.Addr.String()
+		if len(xff) == 0 {
+			ips.ClientIP = extractIPAddress(remoteAddr)
+		} else {
+			ips.ClientIP = extractIPAddress(xff[0])
+			ips.LastHopIP = extractIPAddress(remoteAddr)
+		}
+		ips.TargetIP = extractIPAddress(localAddr)
+		ips.TargetPort = extractPort(localAddr)
+		ips.SrcIP = extractIPAddress(remoteAddr)
+		ips.SrcPort = extractPort(remoteAddr)
 	}
+	return ips
+}
+
+func setIPAddress(reqInfo *RequestInfo, ips *ipSet) {
+	reqInfo.TargetIP = ips.TargetIP
+	reqInfo.Proxy1IP = ips.Proxy1IP
+	reqInfo.Proxy2IP = ips.Proxy2IP
+	reqInfo.Proxy3IP = ips.Proxy3IP
+	reqInfo.ClientIP = ips.ClientIP
+	reqInfo.LastHopIP = ips.LastHopIP
 }
 
 func convRequestToMap(req *pb.GelboRequest) map[string][]string {
