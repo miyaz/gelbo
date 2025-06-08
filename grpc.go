@@ -608,16 +608,17 @@ func newRequestInfoFromContext(ctx context.Context) *RequestInfo {
 	reqInfo := &RequestInfo{
 		Method: method,
 	}
-	ips := getIPSetFromContext(ctx)
-	setIPAddress(reqInfo, ips)
+	mds := getMDSetFromContext(ctx)
+	setIPAddress(reqInfo, mds)
+	reqInfo.Header = mds.headers
 	reqInfo.Proto = "grpc"
-	if ips.TargetPort == grpcsPort {
+	if mds.TargetPort == grpcsPort {
 		reqInfo.Proto = "grpcs"
 	}
 	return reqInfo
 }
 
-type ipSet struct {
+type mdSet struct {
 	SrcIP      string
 	SrcPort    int
 	TargetIP   string
@@ -627,50 +628,52 @@ type ipSet struct {
 	Proxy1IP   string
 	Proxy2IP   string
 	Proxy3IP   string
+	headers    map[string]string
 }
 
-func getIPSetFromContext(ctx context.Context) *ipSet {
-	ips := &ipSet{}
+func getMDSetFromContext(ctx context.Context) *mdSet {
+	mds := &mdSet{}
 	xffStr := ""
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		mds.headers = combineValues(md)
 		if xffArray, ok := md["x-forwarded-for"]; ok {
 			xffStr = xffArray[0]
 		}
 	}
 	xff := splitXFF(xffStr)
 	if len(xff) >= 2 {
-		ips.Proxy1IP = extractIPAddress(xff[1])
+		mds.Proxy1IP = extractIPAddress(xff[1])
 	}
 	if len(xff) >= 3 {
-		ips.Proxy2IP = extractIPAddress(xff[2])
+		mds.Proxy2IP = extractIPAddress(xff[2])
 	}
 	if len(xff) >= 4 {
-		ips.Proxy3IP = extractIPAddress(xff[3])
+		mds.Proxy3IP = extractIPAddress(xff[3])
 	}
 	if pr, ok := peer.FromContext(ctx); ok {
 		localAddr := pr.LocalAddr.String()
 		remoteAddr := pr.Addr.String()
 		if len(xff) == 0 {
-			ips.ClientIP = extractIPAddress(remoteAddr)
+			mds.ClientIP = extractIPAddress(remoteAddr)
 		} else {
-			ips.ClientIP = extractIPAddress(xff[0])
-			ips.LastHopIP = extractIPAddress(remoteAddr)
+			mds.ClientIP = extractIPAddress(xff[0])
+			mds.LastHopIP = extractIPAddress(remoteAddr)
 		}
-		ips.TargetIP = extractIPAddress(localAddr)
-		ips.TargetPort = extractPort(localAddr)
-		ips.SrcIP = extractIPAddress(remoteAddr)
-		ips.SrcPort = extractPort(remoteAddr)
+		mds.TargetIP = extractIPAddress(localAddr)
+		mds.TargetPort = extractPort(localAddr)
+		mds.SrcIP = extractIPAddress(remoteAddr)
+		mds.SrcPort = extractPort(remoteAddr)
 	}
-	return ips
+	return mds
 }
 
-func setIPAddress(reqInfo *RequestInfo, ips *ipSet) {
-	reqInfo.TargetIP = ips.TargetIP
-	reqInfo.Proxy1IP = ips.Proxy1IP
-	reqInfo.Proxy2IP = ips.Proxy2IP
-	reqInfo.Proxy3IP = ips.Proxy3IP
-	reqInfo.ClientIP = ips.ClientIP
-	reqInfo.LastHopIP = ips.LastHopIP
+func setIPAddress(reqInfo *RequestInfo, mds *mdSet) {
+	reqInfo.TargetIP = mds.TargetIP
+	reqInfo.Proxy1IP = mds.Proxy1IP
+	reqInfo.Proxy2IP = mds.Proxy2IP
+	reqInfo.Proxy3IP = mds.Proxy3IP
+	reqInfo.ClientIP = mds.ClientIP
+	reqInfo.LastHopIP = mds.LastHopIP
 }
 
 func convRequestToMap(req *pb.GelboRequest) map[string][]string {

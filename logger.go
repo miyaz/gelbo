@@ -107,10 +107,10 @@ type GrpcLogger struct {
 
 func initLoggerForUnary(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo) *GrpcLogger {
 	l := &GrpcLogger{}
-	ips := getIPSetFromContext(ctx)
+	mds := getMDSetFromContext(ctx)
 	l.recvtime = time.Now()
 	l.proto = "grpc"
-	if ips.TargetPort == grpcsPort {
+	if mds.TargetPort == grpcsPort {
 		l.proto = "grpcs"
 	}
 	l.mode = "unary"
@@ -118,9 +118,9 @@ func initLoggerForUnary(ctx context.Context, req interface{}, info *grpc.UnarySe
 	if params, ok := req.(*pb.GelboRequest); ok {
 		l.params = params.String()
 	}
-	l.clientip = ips.ClientIP
-	l.srcip = ips.SrcIP
-	l.srcport = ips.SrcPort
+	l.clientip = mds.ClientIP
+	l.srcip = mds.SrcIP
+	l.srcport = mds.SrcPort
 	return l
 }
 
@@ -140,10 +140,10 @@ func (l *GrpcLogger) forUnary() *zerolog.Logger {
 
 func initLoggerForStream(ctx context.Context, info *grpc.StreamServerInfo) *GrpcLogger {
 	l := &GrpcLogger{}
-	ips := getIPSetFromContext(ctx)
+	mds := getMDSetFromContext(ctx)
 	l.opentime = time.Now()
 	l.proto = "grpc"
-	if ips.TargetPort == grpcsPort {
+	if mds.TargetPort == grpcsPort {
 		l.proto = "grpcs"
 	}
 	l.mode = "client"
@@ -153,9 +153,9 @@ func initLoggerForStream(ctx context.Context, info *grpc.StreamServerInfo) *Grpc
 		l.mode = "server"
 	}
 	l.method = info.FullMethod
-	l.clientip = ips.ClientIP
-	l.srcip = ips.SrcIP
-	l.srcport = ips.SrcPort
+	l.clientip = mds.ClientIP
+	l.srcip = mds.SrcIP
+	l.srcport = mds.SrcPort
 	return l
 }
 
