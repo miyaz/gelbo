@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -37,9 +38,10 @@ const (
 )
 
 var (
-	headerMDMap  = NewHeaderMap()
-	trailerMDMap = NewHeaderMap()
-	grpcInterval int
+	headerMDMap    = NewHeaderMap()
+	trailerMDMap   = NewHeaderMap()
+	grpcInterval   int
+	regexpCommands = regexp.MustCompile("([A-Z][a-z]+)([0-9]+)")
 )
 
 type gelboServer struct {
@@ -63,6 +65,7 @@ func startGrpcServer() {
 		grpc.KeepaliveParams(kasp),
 		grpc.UnaryInterceptor(gelboSrv1.UnaryInterceptor()),
 		grpc.StreamInterceptor(gelboSrv1.StreamInterceptor()),
+		grpc.UnknownServiceHandler(gelboSrv1.UnregisteredMethodHandler),
 	)
 	gelboSrv2 := newGelboServer()
 	grpcsSrv := grpc.NewServer(
@@ -71,6 +74,7 @@ func startGrpcServer() {
 		grpc.Creds(credentials.NewTLS(loadTLSConfig())),
 		grpc.UnaryInterceptor(gelboSrv2.UnaryInterceptor()),
 		grpc.StreamInterceptor(gelboSrv2.StreamInterceptor()),
+		grpc.UnknownServiceHandler(gelboSrv2.UnregisteredMethodHandler),
 	)
 
 	pb.RegisterGelboServiceServer(grpcSrv, gelboSrv1)
@@ -405,6 +409,28 @@ func createResponse(reqInfo *RequestInfo, inputCmds, resultCmds *Commands) *pb.G
 		},
 		Data: data,
 	}
+}
+
+// === unregistered method handler
+
+func (s *gelboServer) UnregisteredMethodHandler(srv interface{}, stream grpc.ServerStream) error {
+	code := getCodeClass(0) // 0 = codes.OK
+	sleep := 0
+	if fullMethodName, ok := grpc.MethodFromServerStream(stream); ok {
+		for _, cmd := range regexpCommands.FindAllStringSubmatch(fullMethodName, -1) {
+			key := strings.ToLower(cmd[1])
+			value, _ := strconv.Atoi(cmd[2])
+			if key == "code" && value < 17 && value >= 0 {
+				code = getCodeClass(int32(value))
+			} else if key == "sleep" {
+				sleep = value
+			}
+		}
+	}
+	if sleep != 0 {
+		time.Sleep(time.Duration(sleep) * time.Millisecond)
+	}
+	return status.Error(code, code.String())
 }
 
 // === interceptor
