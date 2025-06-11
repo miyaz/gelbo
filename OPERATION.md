@@ -12,13 +12,14 @@
    docker logs -f gelbo
    ```
 
-1. stop
+1. stop & remove
 
    ```
    docker stop gelbo
+   docker rm gelbo
    ```
 
-## container image update
+## run locally
 
 1. compile .proto file (only when .proto file is updated)
 
@@ -28,6 +29,32 @@
       --go-grpc_out=grpc/pb/ --go-grpc_opt=paths=source_relative \
       gelbo.proto
    ```
+
+1. create cert files
+
+   ```
+   mkdir -p cert
+   openssl req -x509 -nodes -newkey rsa:2048 -days 3650 -keyout cert/server-key.pem -out cert/server-cert.pem -subj "/CN=localhost"
+   ```
+
+1. run
+
+   ```
+   go run *go
+   ```
+
+1. access from local (example commands)
+
+   ```
+   curl http://127.0.0.1
+   curl -k https://127.0.0.1
+   grpcurl -v -proto ./grpc/proto/gelbo.proto -plaintext \
+           -d '{"sleep":"1000"}' 127.0.0.1:50051 "elbgrpc.GelboService.Unary"
+   grpcurl -v -proto ./grpc/proto/gelbo.proto -insecure \
+           -d '{"sleep":"1000","repeqt":"3"}' 127.0.0.1:50052 "elbgrpc.GelboService.BidiStream"
+   ```
+
+## container image update
 
 1. ecr login
 
