@@ -38,10 +38,12 @@ const (
 )
 
 var (
-	headerMDMap    = NewHeaderMap()
-	trailerMDMap   = NewHeaderMap()
-	grpcInterval   int
-	regexpCommands = regexp.MustCompile("([A-Z][a-z]+)([0-9]+)")
+	headerMDMap        = NewHeaderMap()
+	trailerMDMap       = NewHeaderMap()
+	grpcInterval       int
+	grpcMaxSendMsgSize int
+	grpcMaxRecvMsgSize int
+	regexpCommands     = regexp.MustCompile("([A-Z][a-z]+)([0-9]+)")
 )
 
 type gelboServer struct {
@@ -61,6 +63,8 @@ func startGrpcServer() {
 	}
 	gelboSrv1 := newGelboServer()
 	grpcSrv := grpc.NewServer(
+		grpc.MaxSendMsgSize(grpcMaxSendMsgSize),
+		grpc.MaxRecvMsgSize(grpcMaxRecvMsgSize),
 		grpc.KeepaliveEnforcementPolicy(kaep),
 		grpc.KeepaliveParams(kasp),
 		grpc.UnaryInterceptor(gelboSrv1.UnaryInterceptor()),
@@ -69,6 +73,8 @@ func startGrpcServer() {
 	)
 	gelboSrv2 := newGelboServer()
 	grpcsSrv := grpc.NewServer(
+		grpc.MaxSendMsgSize(grpcMaxSendMsgSize),
+		grpc.MaxRecvMsgSize(grpcMaxRecvMsgSize),
 		grpc.KeepaliveEnforcementPolicy(kaep),
 		grpc.KeepaliveParams(kasp),
 		grpc.Creds(credentials.NewTLS(loadTLSConfig())),

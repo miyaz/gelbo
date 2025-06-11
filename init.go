@@ -27,6 +27,8 @@ func init() {
 	flag.IntVar(&grpcInterval, "grpcping", 30, "grpc ping frame interval. if 0 is specified, ping frame is not sent")
 	flag.Int64Var(&wsInterval, "wsping", 30, "websocket ping interval")
 	//flag.Int64Var(&maxMessageSize, "wsmaxsize", 1024, "websocket max message size")
+	flag.IntVar(&grpcMaxRecvMsgSize, "grpcmaxrecvsize", 4194304, "grpc max recv size")
+	flag.IntVar(&grpcMaxSendMsgSize, "grpcmaxsendsize", 4194304, "grpc max send size")
 	flag.BoolVar(&execFlag, "exec", false, "enable exec feature")
 	flag.BoolVar(&proxyFlag, "proxy", false, "enable proxy protocol")
 	flag.BoolVar(&noLogFlag, "nolog", false, "disable access logging")
@@ -53,6 +55,8 @@ func init() {
 		Int("grpcping", grpcInterval).
 		Int("wsping", int(wsInterval)).
 		//Int("wsmaxsize", int(maxMessageSize)).
+		Int("grpcmaxrecvsize", int(grpcMaxRecvMsgSize)).
+		Int("grpcmaxsendsize", int(grpcMaxSendMsgSize)).
 		Bool("exec", execFlag).
 		Bool("proxy", proxyFlag).
 		Bool("nolog", noLogFlag).Logger()
