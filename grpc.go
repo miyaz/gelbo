@@ -470,9 +470,14 @@ type streamWrapper struct {
 }
 
 func (s *streamWrapper) RecvMsg(req interface{}) error {
+	var params string
 	err := s.ServerStream.RecvMsg(req)
+	if tmpReq, ok := req.(*pb.GelboRequest); ok {
+		params = tmpReq.String()
+	}
 	if err == nil {
 		s.logger.Log().
+			Str("params", params).
 			Str("action", "recv").
 			Time("recvtime", time.Now()).
 			Int64("reqsize", getBinarySize(req)).Msg("")
@@ -482,6 +487,7 @@ func (s *streamWrapper) RecvMsg(req interface{}) error {
 			Time("recvtime", time.Now()).Msg("")
 	} else {
 		s.logger.Log().
+			Str("params", params).
 			Str("action", "recv").
 			Time("recvtime", time.Now()).
 			Int64("reqsize", getBinarySize(req)).
