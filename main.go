@@ -104,7 +104,8 @@ func main() {
 	}
 	router.HandleFunc("/stop/", stopHandler)
 	router.HandleFunc("/env/", handlerWrapper(envHandler))
-	router.HandleFunc("/chat/", handlerWrapper(chatPageHandler))
+	router.HandleFunc("/files/", handlerWrapper(filesDLHandler))
+	router.HandleFunc("/chat/", handlerWrapper(filesDLHandler))
 	router.HandleFunc("/ws/", wsHandler)
 	router.HandleFunc("/monitor/", monitorHandler)
 	router.HandleFunc("/", handlerWrapper(defaultHandler))

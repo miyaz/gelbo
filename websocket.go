@@ -16,11 +16,8 @@ import (
 	"math/rand"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
-
-	_ "embed"
 
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"
@@ -36,9 +33,6 @@ var (
 
 	newline = []byte{'\n'}
 	space   = []byte{' '}
-
-	//go:embed websocket.html
-	chatHTML string
 )
 
 var upgrader = websocket.Upgrader{
@@ -127,25 +121,6 @@ func (h *Hub) run() {
 			}
 		}
 	}
-}
-
-func chatPageHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/chat/" {
-		w.WriteHeader(http.StatusNotFound)
-		setStatusForLogger(http.StatusNotFound, r)
-		return
-	}
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		setStatusForLogger(http.StatusMethodNotAllowed, r)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Content-Length", strconv.Itoa(len(chatHTML)))
-	fmt.Fprint(w, chatHTML)
-
-	setRespSizeForLogger(int64(len(chatHTML)), r)
-	setStatusForLogger(http.StatusOK, r)
 }
 
 // wsHandler handles websocket requests from the peer.
