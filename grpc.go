@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"regexp"
@@ -371,6 +372,7 @@ func (s *gelboServer) sender(stream interface{}, sendChan chan *pb.GelboResponse
 
 func createResponse(reqInfo *RequestInfo, inputCmds, resultCmds *Commands) *pb.GelboResponse {
 	var data string
+	randSrc := rand.New(rand.NewSource(time.Now().UnixNano()))
 	if inputCmds.needsAction() {
 		if arrayContains(inputCmds.actions, "size") {
 			size, _ := strconv.Atoi(resultCmds.getValue("size"))
