@@ -12,11 +12,11 @@ service GelboService {
 }
 
 message GelboRequest {
-	string cpu = 1;
-	string memory = 2;
-	string sleep = 3;
-	string size = 4;
-	string code = 5;
+  string cpu = 1;
+  string memory = 2;
+  string sleep = 3;
+  string size = 4;
+  string code = 5;
   string addheader = 6;
   string delheader = 7;
   string addtrailer = 8;
@@ -39,7 +39,7 @@ message GelboRequest {
 }
 
 message GelboResponse {
-	HostInfo host = 1;
+  HostInfo host = 1;
   ResourceInfo resource = 2;
   RequestInfo request = 3;
   Direction direction = 4;
