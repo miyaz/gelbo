@@ -422,7 +422,7 @@ func createResponse(reqInfo *RequestInfo, inputCmds, resultCmds *Commands) *pb.G
 // === unregistered method handler
 
 func (s *gelboServer) UnregisteredMethodHandler(srv interface{}, stream grpc.ServerStream) error {
-	code := getCodeClass(0) // 0 = codes.OK
+	code := getCodeClass(12) // 12 = codes.Unimplemented
 	sleep := 0
 	if fullMethodName, ok := grpc.MethodFromServerStream(stream); ok {
 		for _, cmd := range regexpCommands.FindAllStringSubmatch(fullMethodName, -1) {
