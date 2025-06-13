@@ -554,6 +554,10 @@ func (s *gelboServer) StreamInterceptor() grpc.StreamServerInterceptor {
 }
 
 func getBinarySize(val interface{}) int64 {
+	// see https://github.com/golang/go/issues/31664
+	// prevent panic exit until the above issue is resolved
+	defer func() { recover() }()
+
 	var buff bytes.Buffer
 	enc := gob.NewEncoder(&buff)
 	err := enc.Encode(val)
