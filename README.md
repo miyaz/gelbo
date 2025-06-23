@@ -724,6 +724,7 @@ Response trailers received:
 (empty)
 Sent 2 requests and received 1 response
 ```
+</details>
 
 * You can specify headers to send to the server with the -rpc-header option
 * For Client streaming communication, gelbo processes based on the content of the last message. Messages sent before that are ignored
@@ -778,6 +779,7 @@ Response trailers received:
 (empty)
 Sent 1 request and received 2 responses
 ```
+</details>
 
 * Since repeat is set to 2, it responds with 2 messages using streams
 * For each message, it sleeps for a randomly determined time within the 0-30000 range specified by sleep before responding with the message
@@ -885,6 +887,7 @@ Response trailers received:
 (empty)
 Sent 4 requests and received 5 responses
 ```
+</details>
 
 * On the server side, each message is processed in parallel, and the processing results are responded to in parallel (responses are not necessarily in the order messages were received)
 * In the above example, 4 messages are sent, but since there are messages containing repeat (3 specified = 2 additional response
