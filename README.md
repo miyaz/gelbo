@@ -9,7 +9,7 @@
 * A Docker container
   * You can use it if you have a Docker environment (EC2, ECS, etc.).
   * The container image is published in the Public ECR [https://gallery.ecr.aws/h0g2h5b7/gelbo].
-  * The image size (after compression) is only 7MB.
+  * The image size (after compression) is only 10MB.
 * When to use (Examples)
   * Maintain a specified CPU/memory usage rate to verify an Auto Scaling’s scaling policy.
     * Resource control (cpu/memory) function
@@ -26,7 +26,7 @@
   * If you specify '--restart=always', it automatically starts up when the process goes down.
 
 ```
-docker run -d --restart=always -p 80:80 -p 443:443 --name gelbo public.ecr.aws/h0g2h5b7/gelbo
+docker run -d --restart=always -p 80:80 -p 443:443 -p 50051:50051 -p 50052:50052 --name gelbo public.ecr.aws/h0g2h5b7/gelbo
 ```
 
 * Other execution examples:
@@ -64,7 +64,7 @@ systemctl start docker.service
 systemctl enable docker.service
 usermod -a -G docker ec2-user
 
-docker run -d --restart=always -p 80:80 -p 443:443 --name gelbo public.ecr.aws/h0g2h5b7/gelbo
+docker run -d --restart=always -p 80:80 -p 443:443 -p 50051:50051 -p 50052:50052 --name gelbo public.ecr.aws/h0g2h5b7/gelbo
 EOS
 
 # Specify the above sript file and launch the EC2 instance
@@ -102,6 +102,10 @@ Currently, gelbo supports the following options:
   * The port to use for the HTTP protocol (default: 80)
 * -https {https port number}
   * The port to use for the HTTPS protocol (default: 443)
+* -grpc {gRPC port number}
+  * The port to use for the gRPC protocol (default: 50051)
+* -grpcs {gRPC over TLS port number}
+  * The port to use for the gRPC protocol over TLS (default: 50052)
 * -timeout {timeout seconds}
   * The keep-alive timeout value. (default: 65).
   * TCP connection will be disconnected after the specified time.
@@ -112,6 +116,16 @@ Currently, gelbo supports the following options:
 * -wsping {WebSocket ping frame transmission interval (seconds))
   * The interval to send Ping frames to the client on the WebSocket connection (default: 30).
   * Specify a value greater than 0.
+* -wsping {WebSocket PING frame transmission interval (seconds))
+  * The interval to send PING frames to the client on the WebSocket connection (default: 30).
+  * Specify a value greater than 0.
+* -grpcping {gRPC PING frame transmission interval (seconds)}
+  * The interval to send PING frames to the client on the gRPC connection (default: 30)
+  * Specify 0 to not send PING frames
+* -grpcmaxrecvsize {Maximum receivable size (bytes)}
+  * Maximum message size that the gRPC server can receive (default: 4194304 = 4 MB)
+* -grpcmaxsendsize {Maximum sendable size (bytes)}
+  * Maximum message size that the gRPC server can send (default: 4194304 = 4 MB)
 * -exec
   * Enables the arbitrary command execution feature.
 * -proxy
@@ -123,7 +137,7 @@ Currently, gelbo supports the following options:
 * Specify these options at the end of the docker run command as below:
 
 ```
-docker run -d --restart=always -p 80:80 -p 443:443 --name gelbo public.ecr.aws/h0g2h5b7/gelbo -timeout 65
+docker run -d --restart=always -p 80:80 --name gelbo public.ecr.aws/h0g2h5b7/gelbo -timeout 120 -exec -nolog
 ```
 
 # Functions
@@ -550,6 +564,330 @@ http://169.254.170.2/v4/2612bc9219074b7ba718fbac6bd2bb98-3303031112
   * writetime - time of server sending message to client (not recorded when receiving messages)
   * msgsize - message size (in bytes)
   * error - error message (recorded only when an error occurs)
+
+## gRPC
+
+* Functions as a gRPC server and can send and receive messages with clients using the gRPC protocol.
+
+### Description
+
+* By default, grpc (plaintext) listens on port 50051, and grpcs (over TLS) listens on port 50052. (These can be changed with the -grpc / -grpcs options respectively)
+* For message transmission and reception, use [grpcurl](https://github.com/fullstorydev/grpcurl) or implement your own client. (The following execution examples use grpcurl)
+    * The Protocol Buffers definition file implemented in gelbo can be downloaded with `curl -O http[s]://{domain}/files/gelbo.proto`
+* Available methods:
+    * elbgrpc.GelboService.Unary / elbgrpc.GelboService.ClientStream / elbgrpc.GelboService.ServerStream / elbgrpc.GelboService.BidiStream
+        * The above 4 methods correspond to the 4 communication methods (Unary / Client streaming / Server streaming / Bidirectional streaming) as their names suggest
+        * Request parameters:
+            * All parameters except chunk and status can be used in the same way as HTTP[S] requests
+            * Parameters added for gRPC:
+                * addtrailer=trailer to include in subsequent responses
+                    * Included in all subsequent responses until removed by deltrailer
+                * deltrailer=trailer name to delete
+                * code=arbitrary status code in the range 0 to 16
+                    * Responds with the specified status code
+                * repeat=minimum[-maximum]
+                    * Responds to the client the specified number of times
+                    * Uses a random value within the specified range.
+                    * Can be used for communication methods that have streams from server to client (Server streaming / Bidirectional streaming)
+                * dataonly=on
+                    * Same as specifying "1", "t", "true" instead of "on".
+                    * Responds with only the data field. Suggest to use in combination with the size field
+                * noop=on
+                    * Same as specifying "1", "t", "true" instead of "on".
+                    * No Operation, meaning no response is returned
+    * elbgrpc.GelboService.Code{gRPC status code}Sleep{milliseconds}
+        * Processes the status code (0~16) or milliseconds included in the method name and responds. (For example, specifying Code3Sleep2000 will respond with status code 3 [INVALID_ARGUMENT] after 2 seconds)
+        * For a list of status codes, please refer to [here](https://grpc.io/docs/guides/status-codes/)
+        * Please use this by specifying it in the health check path for ALB health check behavior verification
+        * You can also specify only Code{gRPC status code} or only Sleep{milliseconds}
+    * The above 5 methods become the method names when specifying with grpcurl. The actual method name (= when specifying the path in ALB listener rules or health checks) is in the format /package.service/method. (Example: `/elbgrpc.GelboService/Unary`)
+* Logged fields:
+    * opentime - stream start time
+    * recvtime - message receive time
+    * sendtime - message send time
+    * closetime - stream end time
+    * proto - protocol. Either grpc or grpcs
+    * mode - communication method. Either unary, client, server, or bidirect
+    * method - full method name (in the format `/package.service/method`)
+    * params - parameters specified in the request message
+    * action - Either open / recv / recv_end (end of transmission from client) / send / close. Recorded only other than Unary
+    * clientip - client IP address (retrieved from X-Forwarded-For header if available)
+    * srcip - source IP address
+    * srcport - source port
+    * code - status code
+    * reqsize - message receive size
+    * size - message send size
+    * duration - time elapsed until response (in milliseconds). Recorded only for Unary
+    * error - error message (recorded only when an error occurs)
+
+#### Execution Examples
+
+<details><summary>[Unary] Request by specifying sleep / size / addheader</summary>
+
+```
+% curl -kO https://gelbo-xxxxxxxxx.ap-northeast-1.elb.amazonaws.com/files/gelbo.proto
+% grpcurl -v -proto gelbo.proto -d '{"sleep":"0-1000","size":"50-100","addheader":"x-custom: gelbo"}' -insecure gelbo-xxxxxxxxx.ap-northeast-1.elb.amazonaws.com:443 elbgrpc.GelboService.Unary
+
+Resolved method descriptor:
+rpc Unary ( .elbgrpc.GelboRequest ) returns ( .elbgrpc.GelboResponse );
+
+Request metadata to send:
+(empty)
+
+Response headers received:
+content-type: application/grpc
+date: Fri, 13 Jun 2025 07:07:57 GMT
+x-custom:  gelbo
+
+Response contents:
+{
+  "host": {
+    "name": "ip-172-31-23-250.ap-northeast-1.compute.internal",
+    "ip": "172.31.23.250",
+    "az": "ap-northeast-1d",
+    "type": "t3.small"
+  },
+  "resource": {
+    "cpu": {},
+    "memory": {
+      "current": 23.89207711561455
+    }
+  },
+  "request": {
+    "protocol": "grpc",
+    "method": "/elbgrpc.GelboService/Unary",
+    "header": [
+      ":authority: gelbo-xxxxxxxxx.ap-northeast-1.elb.amazonaws.com",
+      "content-type: application/grpc",
+      "grpc-accept-encoding: gzip",
+      "user-agent: grpcurl/1.9.3 grpc-go/1.61.0",
+      "x-amzn-tls-cipher-suite: TLS_AES_128_GCM_SHA256",
+      "x-amzn-tls-version: TLSv1.3",
+      "x-amzn-trace-id: Root=1-684bce4d-731d570154f499794dbae564",
+      "x-forwarded-for: 203.0.113.145",
+      "x-forwarded-port: 443",
+      "x-forwarded-proto: https"
+    ],
+    "clientip": "203.0.113.145",
+    "lasthopip": "172.31.36.136",
+    "targetip": "172.17.0.2"
+  },
+  "direction": {
+    "input": [
+     "addheader: x-custom: gelbo",
+     "size: 50-100",
+     "sleep: 0-1000"
+    ],
+    "result": [
+     "addheader: x-custom: gelbo",
+     "size: 91",
+     "sleep: 237"
+    ]
+  },
+ "data": "wScMPbBIk1RiyVwq6lviuRvDEDkFFliy1ApLJpIZBVpw9RGN53kys7rdYS6UDSDRIwYxWA0WGLthrtEh5U9XTK18tt3"
+}
+
+Response trailers received:
+(empty)
+Sent 1 request and received 1 response
+```
+</details>
+
+* You can display header and trailer information by adding the -v option
+* Download the Protocol Buffers definition file and specify it with the -proto option
+    * If you don't specify a definition file with the -proto option, it will first access the reflection API (`/grpc.reflection.v1.ServerReflection/ServerReflectionInfo`) to obtain method definition information provided by the gRPC server
+    * If the client needs to access the reflection API and you're restricting paths (methods) with ALB listener rules, you also need to allow the reflection API path
+* Adds a random string of the number of bytes specified by size as the data field. By specifying the dataonly parameter, you can control the response size by excluding fields other than data
+
+<details><summary>[ClientStream] Send multiple messages from clients</summary>
+
+```
+% grpcurl -v -rpc-header 'x-custom: test' -d '{"sleep":"1000"}{"dataonly":"on","size":"20"}' -insecure gelbo-xxxxxxxxx.ap-northeast-1.elb.amazonaws.com:443 elbgrpc.GelboService.ClientStream
+
+Resolved method descriptor:
+rpc ClientStream ( stream .elbgrpc.GelboRequest ) returns ( .elbgrpc.GelboResponse );
+
+Request metadata to send:
+x-custom: test
+
+Response headers received:
+content-type: application/grpc
+date: Fri, 13 Jun 2025 07:48:49 GMT
+
+Response contents:
+{
+  "data": "0bUnMQe3PMEXLjYN1pH0"
+}
+
+Response trailers received:
+(empty)
+Sent 2 requests and received 1 response
+```
+
+* You can specify headers to send to the server with the -rpc-header option
+* For Client streaming communication, gelbo processes based on the content of the last message. Messages sent before that are ignored
+    * In the above example, the {"sleep":"1000"} message is ignored
+
+<details><summary>[ServerStream] Respond to multiple messages from the server</summary>
+
+```
+% grpcurl -v -d '{"repeat":"2","sleep":"0-30000"}' -insecure gelbo-xxxxxxxxx.ap-northeast-1.elb.amazonaws.com:443 elbgrpc.GelboService.ServerStream
+
+Resolved method descriptor:
+rpc ServerStream ( .elbgrpc.GelboRequest ) returns ( stream .elbgrpc.GelboResponse );
+
+Request metadata to send:
+(empty)
+
+Response headers received:
+content-type: application/grpc
+date: Fri, 13 Jun 2025 07:57:34 GMT
+
+Response contents:
+{
+    (snip)
+  "direction": {
+    "input": [
+     "repeat: 2",
+     "sleep: 0-30000"
+    ],
+    "result": [
+     "repeat: 2",
+     "sleep: 23815"
+    ]
+  }
+}
+
+Response contents:
+{
+    (snip)
+  "direction": {
+    "input": [
+     "repeat: 2",
+     "sleep: 0-30000"
+    ],
+    "result": [
+     "repeat: 2",
+     "sleep: 4926"
+    ]
+  }
+}
+
+Response trailers received:
+(empty)
+Sent 1 request and received 2 responses
+```
+
+* Since repeat is set to 2, it responds with 2 messages using streams
+* For each message, it sleeps for a randomly determined time within the 0-30000 range specified by sleep before responding with the message
+
+<details><summary>[BidiStream] Send and receive multiple messages</summary>
+
+```
+% grpcurl -v -d '{"dataonly":"t","sleep":"3000"}{}{"repeat":"3","sleep":"0-2000"}{"noop":"t"}' -insecure gelbo-xxxxxxxxx.ap-northeast-1.elb.amazonaws.com:443 elbgrpc.GelboService.BidiStream
+
+Resolved method descriptor:
+rpc BidiStream ( stream .elbgrpc.GelboRequest ) returns ( stream .elbgrpc.GelboResponse );
+
+Request metadata to send:
+(empty)
+
+Response headers received:
+content-type: application/grpc
+date: Fri, 13 Jun 2025 10:41:05 GMT
+
+Response contents:
+{
+  "host": {
+    "name": "ip-172-31-23-250.ap-northeast-1.compute.internal",
+    "ip": "172.31.23.250",
+    "az": "ap-northeast-1d",
+    "type": "t3.small"
+  },
+  "resource": {
+    "cpu": {},
+    "memory": {
+      "current": 23.58432921717136
+    }
+  },
+  "request": {
+    "protocol": "grpc",
+    "method": "/elbgrpc.GelboService/BidiStream",
+    "header": [
+      ":authority: gelbo-xxxxxxxxx.ap-northeast-1.elb.amazonaws.com",
+      "content-type: application/grpc",
+      "grpc-accept-encoding: gzip",
+      "user-agent: grpcurl/1.9.3 grpc-go/1.61.0",
+      "x-amzn-tls-cipher-suite: TLS_AES_128_GCM_SHA256",
+      "x-amzn-tls-version: TLSv1.3",
+      "x-amzn-trace-id: Root=1-684c0041-5b94970c5984439e732b65b3",
+      "x-forwarded-for: 203.0.113.145:19192",
+      "x-forwarded-port: 443",
+      "x-forwarded-proto: https"
+    ],
+    "clientip": "203.0.113.145",
+    "lasthopip": "172.31.1.127",
+    "targetip": "172.17.0.2"
+  },
+  "direction": {}
+}
+
+Response contents:
+{
+    (snip)
+  "direction": {
+    "input": [
+      "repeat: 3",
+      "sleep: 0-2000"
+    ],
+    "result": [
+      "repeat: 3",
+      "sleep: 261"
+    ]
+  }
+}
+
+Response contents:
+{
+    (snip)
+  "direction": {
+    "input": [
+      "repeat: 3",
+      "sleep: 0-2000"
+    ],
+    "result": [
+      "repeat: 3",
+      "sleep: 1798"
+    ]
+  }
+}
+
+Response contents:
+{
+    (snip)
+  "direction": {
+    "input": [
+      "repeat: 3",
+      "sleep: 0-2000"
+    ],
+    "result": [
+      "repeat: 3",
+      "sleep: 768"
+    ]
+  }
+}
+
+Response contents:
+{}
+
+Response trailers received:
+(empty)
+Sent 4 requests and received 5 responses
+```
+
+* On the server side, each message is processed in parallel, and the processing results are responded to in parallel (responses are not necessarily in the order messages were received)
+* In the above example, 4 messages are sent, but since there are messages containing repeat (3 specified = 2 additional response
+messages) and noop (no response), the number of response messages becomes 5 (4 + 2 - 1)
 
 ## Other Functions
 
