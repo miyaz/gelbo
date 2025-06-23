@@ -251,8 +251,9 @@ L4jGiMXWdk36Ll9BtgOe29YlL9Ktwciqv2SpLutyvcpjdPujhyoEiBiUfXrRspItbx99oQUBEb3yd5BO
   * Uses a random value within the specified range.
 * status=specified status code within the range of 100 to 999
   * Responds with the specified status code. 
-* chunk  Responds data chunked (Transfer-Encoding: chunked)
-  * Arbitrary value can be specified in this field (not affect operation)
+* chunk=on
+  * Same as specifying "1", "t", "true" instead of "on".
+  * Responds data chunked (Transfer-Encoding: chunked)
   * Only supports HTTP/1.1
 * direction.result
   * Responds "invalid" if you specify an unexpected value (not a number of hyphen).
