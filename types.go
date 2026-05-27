@@ -296,7 +296,9 @@ func newValidator() (map[string]*regexp.Regexp, map[string]*regexp.Regexp) {
 	vh["ifhost"] = regexp.MustCompile("^(" + regexpHostname + "(" + orSeparator + regexpHostname + ")*)$")
 	vh["ifaz"] = regexp.MustCompile("^(" + regexpAZone + "(" + orSeparator + regexpAZone + ")*)$")
 	vh["iftype"] = regexp.MustCompile("^(" + regexpInstanceType + "(" + orSeparator + regexpInstanceType + ")*)$")
-	regexpIPv4v6 := fmt.Sprintf("(%s|%s)", regexpIPv4, regexpIPv6)
+	regexpCIDRv4 := regexpIPv4 + `/([0-9]|[1-2][0-9]|3[0-2])`
+	regexpCIDRv6 := regexpIPv6 + `/(12[0-8]|1[01][0-9]|[0-9]{1,2})`
+	regexpIPv4v6 := fmt.Sprintf("(%s|%s|%s|%s)", regexpIPv4, regexpIPv6, regexpCIDRv4, regexpCIDRv6)
 	vh["ifhostip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
 	vh["iftargetip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
 	vh["ifproxy1ip"] = regexp.MustCompile("^(" + regexpIPv4v6 + "(" + orSeparator + regexpIPv4v6 + ")*)$")
@@ -348,11 +350,26 @@ func (reqInfo *RequestInfo) validateCommands(mapCmds map[string][]string) *Comma
 func judgeActualValue(actualValue, value string) bool {
 	if strings.Contains(value, orSeparator) {
 		for _, v := range strings.Split(value, orSeparator) {
-			if actualValue == v {
+			if matchIPValue(actualValue, v) {
 				return true
 			}
 		}
 		return false
+	}
+	return matchIPValue(actualValue, value)
+}
+
+func matchIPValue(actualValue, value string) bool {
+	if strings.Contains(value, "/") {
+		ip := net.ParseIP(actualValue)
+		if ip == nil {
+			return false
+		}
+		_, ipNet, err := net.ParseCIDR(value)
+		if err != nil {
+			return false
+		}
+		return ipNet.Contains(ip)
 	}
 	return actualValue == value
 }
