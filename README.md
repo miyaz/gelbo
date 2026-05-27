@@ -371,6 +371,7 @@ L4jGiMXWdk36Ll9BtgOe29YlL9Ktwciqv2SpLutyvcpjdPujhyoEiBiUfXrRspItbx99oQUBEb3yd5BO
 * Available if conditions:
   * ifclientip, ifproxy1ip, ifproxy2ip, ifproxy3ip, iflasthopip, iftargetip, ifhostip, ifhost, ifaz, iftype
   * You can specify IPv4 / IPv6 addresses for the IP addresses (if use IPv6, exclude the brackets [ ]). 
+  * You can also specify CIDR notation for IP address conditions (e.g. `ifclientip=10.0.0.0/8`, `ifhostip=2001:db8::/32`).
 * You can specify multiple, different if conditions. In this case, it's AND evaluation.
 * You can specify multiple, same if conditions. In this case, it's OR evaluation.
 * Executes the specified processing when all conditions are met. 
