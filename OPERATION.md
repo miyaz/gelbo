@@ -51,7 +51,7 @@
    grpcurl -v -proto ./grpc/proto/gelbo.proto -plaintext \
            -d '{"sleep":"1000"}' 127.0.0.1:50051 "elbgrpc.GelboService.Unary"
    grpcurl -v -proto ./grpc/proto/gelbo.proto -insecure \
-           -d '{"sleep":"1000","repeqt":"3"}' 127.0.0.1:50052 "elbgrpc.GelboService.BidiStream"
+           -d '{"sleep":"1000","repeat":"3"}' 127.0.0.1:50052 "elbgrpc.GelboService.BidiStream"
    ```
 
 ## container image update
