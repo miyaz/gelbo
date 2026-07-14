@@ -18,3 +18,5 @@ cert/server-*
 
 # binary
 gelbo
+bootstrap
+gelbo-lambda.zip

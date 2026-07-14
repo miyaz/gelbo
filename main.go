@@ -37,6 +37,7 @@ var (
 	noLogFlag     bool
 	execFlag      bool
 	proxyFlag     bool
+	isLambda      bool
 	idleTimeout   int
 	probeInterval int
 	cw            ConnectionWatcher
@@ -73,6 +74,13 @@ func PPWrapListenAndServe(props *PPWrapListenAndServeProps) error {
 }
 
 func main() {
+	// Check if running in Lambda environment
+	if os.Getenv("AWS_LAMBDA_FUNCTION_NAME") != "" {
+		isLambda = true
+		runLambda()
+		return
+	}
+
 	if noLogFlag {
 		zerolog.SetGlobalLevel(zerolog.Disabled)
 	}
@@ -358,8 +366,11 @@ func defaultHandler(w http.ResponseWriter, r *http.Request) {
 	reqSize, _ := io.Copy(io.Discard, r.Body)
 	respSize, statusCode := execAction(w, r, &respInfo)
 	store.node.reflectRequest(reqSize, respSize)
-	remoteAddr := extractIPAddress(r.RemoteAddr)
-	remoteNodes.m[remoteAddr].reflectRequest(reqSize, respSize)
+	if !isLambda {
+		remoteAddr := extractIPAddress(r.RemoteAddr)
+		remoteNodes.m[remoteAddr].reflectRequest(reqSize, respSize)
+	}
+
 	setRespSizeForLogger(respSize, r)
 	setStatusForLogger(statusCode, r)
 }

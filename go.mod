@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	github.com/aws/aws-lambda-go v1.54.0 // indirect
 	github.com/google/certificate-transparency-go v1.3.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect

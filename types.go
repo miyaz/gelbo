@@ -403,11 +403,13 @@ func (reqInfo *RequestInfo) setIPAddress(r *http.Request) {
 		reqInfo.ClientIP = extractIPAddress(r.RemoteAddr)
 	} else {
 		reqInfo.ClientIP = extractIPAddress(xff[0])
-		reqInfo.LastHopIP = extractIPAddress(r.RemoteAddr)
-		// use elb
-		store.node.Lock()
-		defer store.node.Unlock()
-		store.node.ELBs[reqInfo.LastHopIP] = remoteNodes.m[reqInfo.LastHopIP]
+		if !isLambda {
+			reqInfo.LastHopIP = extractIPAddress(r.RemoteAddr)
+			// use elb
+			store.node.Lock()
+			defer store.node.Unlock()
+			store.node.ELBs[reqInfo.LastHopIP] = remoteNodes.m[reqInfo.LastHopIP]
+		}
 	}
 }
 

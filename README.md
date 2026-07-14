@@ -902,4 +902,7 @@ messages) and noop (no response), the number of response messages becomes 5 (4 +
   * Example: /?stdout=foo&stderr=bar
   * Consider using the -nolog option as needed.
 * Docker images are compatible with amd64 / arm64 architectures.
+* Can also be used as a Lambda target for ALB.
+  * gelbo can be deployed as an AWS Lambda function and registered as an ALB Lambda target, allowing you to verify ALB behavior without running any EC2 instances or containers.
+  * For setup instructions, refer to [OPERATIONS-lambda.md](OPERATIONS-lambda.md).
 
