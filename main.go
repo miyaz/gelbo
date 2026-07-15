@@ -301,24 +301,59 @@ func execHandler(w http.ResponseWriter, r *http.Request) {
 
 func envHandler(w http.ResponseWriter, r *http.Request) {
 	qsMap := r.URL.Query()
-	var respStrs []string
-	for key, values := range qsMap {
-		if key != "key" {
-			continue
+	keys := qsMap["key"]
+
+	var respBody string
+	if len(keys) == 0 {
+		// No key specified: output all environment variables as JSON
+		envMap := make(map[string]string)
+		for _, env := range os.Environ() {
+			parts := strings.SplitN(env, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			k, v := parts[0], parts[1]
+			if isSensitiveEnvKey(k) {
+				v = "REDACTED"
+			}
+			envMap[k] = v
 		}
-		for _, value := range values {
-			// preventing access to credentials in environment variables
-			if strings.Index(value, "ACCESS_KEY") != -1 {
+		jsonBytes, _ := json.MarshalIndent(envMap, "", "  ")
+		respBody = string(jsonBytes) + "\n"
+	} else {
+		// key specified: existing behavior
+		var respStrs []string
+		for _, value := range keys {
+			if isSensitiveEnvKey(value) {
 				continue
 			}
 			respStrs = append(respStrs, fmt.Sprintf("%s\n", os.Getenv(value)))
 		}
+		respBody = strings.Join(respStrs, "")
 	}
-	respBody := strings.Join(respStrs, "")
 	fmt.Fprintf(w, "%s", respBody)
 
 	setRespSizeForLogger(int64(len(respBody)), r)
 	setStatusForLogger(http.StatusOK, r)
+}
+
+// isSensitiveEnvKey returns true if the key name likely contains credentials
+func isSensitiveEnvKey(key string) bool {
+	upper := strings.ToUpper(key)
+	sensitivePatterns := []string{
+		"ACCESS_KEY",
+		"SESSION_TOKEN",
+		"SECURITY_TOKEN",
+		"PRIVATE_KEY",
+		"PASSWORD",
+		"CREDENTIAL",
+	}
+	for _, pattern := range sensitivePatterns {
+		if strings.Contains(upper, pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 func stopHandler(w http.ResponseWriter, r *http.Request) {
