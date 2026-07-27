@@ -2,7 +2,7 @@ FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
 
 ARG TARGETARCH
 ENV GOOS=linux
-ENV GOPROXY=direct
+ENV GOPROXY=https://proxy.golang.org,direct
 
 # install protoc (apt install)
 RUN apt-get update && apt install -y protobuf-compiler
