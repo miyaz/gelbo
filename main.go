@@ -176,7 +176,6 @@ type ConnectionWatcher struct {
 func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) {
 	remoteAddr := conn.RemoteAddr().String()
 	key := connKey(remoteAddr, conn.LocalAddr().String())
-	fmt.Printf("%s\t%s\n", key, state)
 	if state == http.StateNew {
 		if _, ok := csMaps.get(key); ok {
 			csMaps.del(key)
