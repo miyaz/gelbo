@@ -383,7 +383,7 @@ func combineValuesWithOr(input map[string][]string) map[string]string {
 }
 
 func (reqInfo *RequestInfo) setIPAddress(r *http.Request) {
-	cs, ok := csMaps.get(r.RemoteAddr)
+	cs, ok := csMaps.getByRemoteAddr(r.RemoteAddr)
 	if ok {
 		reqInfo.TargetIP = extractIPAddress(cs.conn.LocalAddr().String())
 	} else {
@@ -546,6 +546,13 @@ func (reqInfo *RequestInfo) getActualValue(key string) (ret string) {
 
 var csMaps = NewConnStateMap()
 
+// connKey returns the key used in csMaps: "remoteAddr->localAddr".
+// Using both addresses prevents collisions when HTTP and gRPC share the same
+// client-side source port (which is possible since they listen on different ports).
+func connKey(remoteAddr, localAddr string) string {
+	return remoteAddr + "->" + localAddr
+}
+
 // ConnState ... store connection state and some attributes
 type ConnState struct {
 	mu        *sync.RWMutex
@@ -589,6 +596,20 @@ func (csm *ConnStateMap) get(k string) (*ConnState, bool) {
 	defer csm.RUnlock()
 	v, ok := csm.m[k]
 	return v, ok
+}
+
+// getByRemoteAddr finds a ConnState whose key starts with "remoteAddr->".
+// Used by HTTP handlers that only know r.RemoteAddr and not the local address.
+func (csm *ConnStateMap) getByRemoteAddr(remoteAddr string) (*ConnState, bool) {
+	prefix := remoteAddr + "->"
+	csm.RLock()
+	defer csm.RUnlock()
+	for k, v := range csm.m {
+		if strings.HasPrefix(k, prefix) {
+			return v, true
+		}
+	}
+	return nil, false
 }
 func (csm *ConnStateMap) del(k string) {
 	csm.Lock()

@@ -175,11 +175,13 @@ type ConnectionWatcher struct {
 // OnStateChange ... records open connections in response to connection
 func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) {
 	remoteAddr := conn.RemoteAddr().String()
+	key := connKey(remoteAddr, conn.LocalAddr().String())
+	fmt.Printf("%s\t%s\n", key, state)
 	if state == http.StateNew {
-		if _, ok := csMaps.get(remoteAddr); ok {
-			csMaps.del(remoteAddr)
+		if _, ok := csMaps.get(key); ok {
+			csMaps.del(key)
 		}
-		csMaps.set(remoteAddr, conn)
+		csMaps.set(key, conn)
 		atomic.AddInt64(&cw.total, 1)
 		remoteNodes.addTotalConns(extractIPAddress(remoteAddr), 1)
 		// tcp keepalive setting
@@ -203,7 +205,7 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 		return
 	}
 
-	cs, ok := csMaps.get(remoteAddr)
+	cs, ok := csMaps.get(key)
 	if !ok {
 		return
 	}
@@ -227,6 +229,7 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 		}
 		remoteNodes.addTotalConns(extractIPAddress(remoteAddr), -1)
 		atomic.AddInt64(&cw.total, -1)
+		csMaps.del(key)
 	}
 }
 
@@ -256,7 +259,7 @@ func (cw *ConnectionWatcher) getActiveConns() int64 {
 func handlerWrapper(fn http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var reuse int64
-		if cs, ok := csMaps.get(r.RemoteAddr); ok {
+		if cs, ok := csMaps.getByRemoteAddr(r.RemoteAddr); ok {
 			reuse = atomic.AddInt64(&cs.reuse, 1)
 		}
 		httpLogger, _ := r.Context().Value("logger").(*HttpLogger)
