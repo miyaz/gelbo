@@ -145,7 +145,9 @@ func main() {
 		} else {
 			err = httpsSrv.ListenAndServeTLS("", "")
 		}
-		log.Fatalln(err)
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalln(err)
+		}
 	}()
 
 	httpSrv = &http.Server{
@@ -165,10 +167,15 @@ func main() {
 		} else {
 			err = httpSrv.ListenAndServe()
 		}
-		log.Fatalln(err)
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalln(err)
+		}
 	}()
 
 	startGrpcServer()
+
+	// Block forever; shutdown is triggered via stopHandler.
+	select {}
 }
 
 // ConnectionWatcher ... connection counter
@@ -375,42 +382,47 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 		f.Flush()
 	}
 
-	// Run all shutdown operations in parallel with a 30-second timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Run shutdown in a separate goroutine so that this handler can return
+	// first. httpSrv.Shutdown waits for all active handlers to finish, so
+	// calling it from within a handler would deadlock (the handler would wait
+	// for Shutdown, and Shutdown would wait for the handler to return).
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-	var wg sync.WaitGroup
-	if grpcSrv != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			grpcSrv.GracefulStop()
-		}()
-	}
-	if grpcsSrv != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			grpcsSrv.GracefulStop()
-		}()
-	}
-	if httpSrv != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			httpSrv.Shutdown(ctx)
-		}()
-	}
-	if httpsSrv != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			httpsSrv.Shutdown(ctx)
-		}()
-	}
-	wg.Wait()
+		var wg sync.WaitGroup
+		if grpcSrv != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				grpcSrv.GracefulStop()
+			}()
+		}
+		if grpcsSrv != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				grpcsSrv.GracefulStop()
+			}()
+		}
+		if httpSrv != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				httpSrv.Shutdown(ctx)
+			}()
+		}
+		if httpsSrv != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				httpsSrv.Shutdown(ctx)
+			}()
+		}
+		wg.Wait()
 
-	log.Fatalf("stop request received (graceful)")
+		log.Fatalf("stop request received (graceful)")
+	}()
 }
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {

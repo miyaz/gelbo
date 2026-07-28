@@ -129,14 +129,20 @@ func startGrpcServer() {
 			log.Fatalln(err)
 		}
 		err = grpcSrv.Serve(newGrpcConnListener(ln))
-		log.Fatalln(err)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}()
-	ln, err := lnCnf.Listen(context.Background(), "tcp", fmt.Sprintf(":%d", grpcsPort))
-	if err != nil {
-		log.Fatalln(err)
-	}
-	err = grpcsSrv.Serve(newGrpcConnListener(ln))
-	log.Fatalln(err)
+	go func() {
+		ln, err := lnCnf.Listen(context.Background(), "tcp", fmt.Sprintf(":%d", grpcsPort))
+		if err != nil {
+			log.Fatalln(err)
+		}
+		err = grpcsSrv.Serve(newGrpcConnListener(ln))
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}()
 }
 
 func (s *gelboServer) Unary(ctx context.Context, req *pb.GelboRequest) (*pb.GelboResponse, error) {
