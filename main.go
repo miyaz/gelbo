@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -18,6 +19,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -42,6 +44,8 @@ var (
 	idleTimeout   int
 	probeInterval int
 	cw            ConnectionWatcher
+	httpSrv       *http.Server
+	httpsSrv      *http.Server
 
 	//go:embed cert/server-cert.pem
 	certData []byte
@@ -123,7 +127,7 @@ func main() {
 		H2Server: &http2.Server{},
 	}
 
-	httpsSrv := &http.Server{
+	httpsSrv = &http.Server{
 		Addr:        ":" + strconv.Itoa(httpsPort),
 		IdleTimeout: time.Duration(idleTimeout) * time.Second,
 		ConnState:   cw.OnStateChange,
@@ -144,7 +148,7 @@ func main() {
 		log.Fatalln(err)
 	}()
 
-	httpSrv := &http.Server{
+	httpSrv = &http.Server{
 		Addr:        ":" + strconv.Itoa(httpPort),
 		IdleTimeout: time.Duration(idleTimeout) * time.Second,
 		ConnState:   cw.OnStateChange,
@@ -360,7 +364,53 @@ func isSensitiveEnvKey(key string) bool {
 }
 
 func stopHandler(w http.ResponseWriter, r *http.Request) {
-	log.Fatalf("stop request received")
+	_, graceful := r.URL.Query()["graceful"]
+	if !graceful {
+		log.Fatalf("stop request received")
+	}
+
+	// Respond first so this connection doesn't block the shutdown
+	w.WriteHeader(http.StatusOK)
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+
+	// Run all shutdown operations in parallel with a 30-second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	if grpcSrv != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			grpcSrv.GracefulStop()
+		}()
+	}
+	if grpcsSrv != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			grpcsSrv.GracefulStop()
+		}()
+	}
+	if httpSrv != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			httpSrv.Shutdown(ctx)
+		}()
+	}
+	if httpsSrv != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			httpsSrv.Shutdown(ctx)
+		}()
+	}
+	wg.Wait()
+
+	log.Fatalf("stop request received (graceful)")
 }
 
 func defaultHandler(w http.ResponseWriter, r *http.Request) {
