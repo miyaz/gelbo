@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	_ "embed"
@@ -432,6 +433,11 @@ func execAction(w http.ResponseWriter, r *http.Request, respInfo *ResponseInfo) 
 			sleep, _ := strconv.Atoi(respInfo.Direction.Result.getValue("sleep"))
 			time.Sleep(time.Duration(sleep) * time.Millisecond)
 		}
+		if arrayContains(respInfo.Direction.Input.actions, "disconnect") {
+			proto, _ := r.Context().Value("proto").(string)
+			disconnect(r.RemoteAddr, proto, respInfo.Direction.Result.getValue("disconnect") == "rst")
+			return 0, 0
+		}
 		if arrayContains(respInfo.Direction.Input.actions, "status") {
 			statusCode, _ = strconv.Atoi(respInfo.Direction.Result.getValue("status"))
 		}
@@ -480,6 +486,67 @@ func execAction(w http.ResponseWriter, r *http.Request, respInfo *ResponseInfo) 
 		fmt.Println(err)
 	}
 	return int64(respSize), statusCode
+}
+
+func disconnect(remoteAddr string, proto string, force bool) {
+	cs, ok := csMaps.getByRemoteAddr(remoteAddr)
+	if !ok {
+		return
+	}
+	key := connKey(remoteAddr, cs.conn.LocalAddr().String())
+	closeConnection(cs.conn, force)
+	// gRPC connections are not managed by OnStateChange, so skip counter operations.
+	// For h2c, both active and total are already decremented at hijack time by OnStateChange.
+	isGrpc := proto == "grpc" || proto == "grpcs"
+	if !isGrpc && proto != "h2c" {
+		if cs.curState == http.StateActive {
+			atomic.AddInt64(&cw.active, -1)
+			remoteNodes.addActiveConns(extractIPAddress(remoteAddr), -1)
+		}
+		if cs.curState != http.StateClosed {
+			atomic.AddInt64(&cw.total, -1)
+			remoteNodes.addTotalConns(extractIPAddress(remoteAddr), -1)
+		}
+	}
+	csMaps.del(key)
+}
+
+func closeConnection(conn net.Conn, force bool) {
+	var linger int32
+	if !force {
+		linger = 1
+	}
+	tcpConn, ok := conn.(*net.TCPConn)
+	if !ok {
+		if tlsConn, ok := conn.(*tls.Conn); ok {
+			rawConn, err := tlsConn.NetConn().(*net.TCPConn).SyscallConn()
+			if err != nil {
+				fmt.Println("Failed to get raw connection:", err)
+				return
+			}
+			rawConn.Control(func(fd uintptr) {
+				syscall.SetsockoptLinger(int(fd), syscall.SOL_SOCKET, syscall.SO_LINGER, &syscall.Linger{
+					Onoff:  1,
+					Linger: linger,
+				})
+			})
+			conn.Close()
+		}
+		return
+	}
+
+	rawConn, err := tcpConn.SyscallConn()
+	if err != nil {
+		fmt.Println("Failed to get raw connection:", err)
+		return
+	}
+	rawConn.Control(func(fd uintptr) {
+		syscall.SetsockoptLinger(int(fd), syscall.SOL_SOCKET, syscall.SO_LINGER, &syscall.Linger{
+			Onoff:  1,
+			Linger: linger,
+		})
+	})
+	tcpConn.Close()
 }
 
 func getClientIPAddress(r *http.Request) (clientIP string) {

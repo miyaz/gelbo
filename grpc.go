@@ -44,6 +44,8 @@ var (
 	grpcInterval       int
 	grpcMaxSendMsgSize int
 	grpcMaxRecvMsgSize int
+	grpcSrv            *grpc.Server
+	grpcsSrv           *grpc.Server
 	regexpCommands     = regexp.MustCompile("([A-Z][a-z]+)([0-9]+)")
 )
 
@@ -55,6 +57,30 @@ func newGelboServer() *gelboServer {
 	return &gelboServer{}
 }
 
+// grpcConnListener wraps net.Listener to register each accepted connection into csMaps
+// so that the disconnect feature can look up and close gRPC connections by remote address.
+type grpcConnListener struct {
+	net.Listener
+}
+
+func newGrpcConnListener(ln net.Listener) *grpcConnListener {
+	return &grpcConnListener{Listener: ln}
+}
+
+func (l *grpcConnListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	remoteAddr := conn.RemoteAddr().String()
+	key := connKey(remoteAddr, conn.LocalAddr().String())
+	if _, ok := csMaps.get(key); ok {
+		csMaps.del(key)
+	}
+	csMaps.set(key, conn)
+	return conn, nil
+}
+
 func startGrpcServer() {
 	kaep := keepalive.EnforcementPolicy{
 		PermitWithoutStream: true,
@@ -63,7 +89,7 @@ func startGrpcServer() {
 		Time: time.Duration(grpcInterval) * time.Second,
 	}
 	gelboSrv1 := newGelboServer()
-	grpcSrv := grpc.NewServer(
+	grpcSrv = grpc.NewServer(
 		grpc.MaxSendMsgSize(grpcMaxSendMsgSize),
 		grpc.MaxRecvMsgSize(grpcMaxRecvMsgSize),
 		grpc.KeepaliveEnforcementPolicy(kaep),
@@ -73,7 +99,7 @@ func startGrpcServer() {
 		grpc.UnknownServiceHandler(gelboSrv1.UnregisteredMethodHandler),
 	)
 	gelboSrv2 := newGelboServer()
-	grpcsSrv := grpc.NewServer(
+	grpcsSrv = grpc.NewServer(
 		grpc.MaxSendMsgSize(grpcMaxSendMsgSize),
 		grpc.MaxRecvMsgSize(grpcMaxRecvMsgSize),
 		grpc.KeepaliveEnforcementPolicy(kaep),
@@ -98,19 +124,19 @@ func startGrpcServer() {
 		lnCnf.KeepAlive = -1
 	}
 	go func() {
-		if grpcLn, err := lnCnf.Listen(context.Background(), "tcp", fmt.Sprintf(":%d", grpcPort)); err != nil {
-			log.Fatalln(err)
-		} else {
-			err = grpcSrv.Serve(grpcLn)
+		ln, err := lnCnf.Listen(context.Background(), "tcp", fmt.Sprintf(":%d", grpcPort))
+		if err != nil {
 			log.Fatalln(err)
 		}
-	}()
-	if grpcsLn, err := lnCnf.Listen(context.Background(), "tcp", fmt.Sprintf(":%d", grpcsPort)); err != nil {
+		err = grpcSrv.Serve(newGrpcConnListener(ln))
 		log.Fatalln(err)
-	} else {
-		err = grpcsSrv.Serve(grpcsLn)
+	}()
+	ln, err := lnCnf.Listen(context.Background(), "tcp", fmt.Sprintf(":%d", grpcsPort))
+	if err != nil {
 		log.Fatalln(err)
 	}
+	err = grpcsSrv.Serve(newGrpcConnListener(ln))
+	log.Fatalln(err)
 }
 
 func (s *gelboServer) Unary(ctx context.Context, req *pb.GelboRequest) (*pb.GelboResponse, error) {
@@ -232,7 +258,7 @@ func (s *gelboServer) handler(mode int, ctx context.Context, req *pb.GelboReques
 			repeat, _ := strconv.Atoi(resultCmds.getValue("repeat"))
 			for i := 1; i < repeat; i++ {
 				resultCmds.Repeat = strconv.Itoa(repeat)
-				if err := execGrpcAction(reqInfo, inputCmds, resultCmds); err != nil {
+				if err := execGrpcAction(ctx, reqInfo, inputCmds, resultCmds); err != nil {
 					errChan <- err
 					wg.done()
 					return
@@ -243,7 +269,7 @@ func (s *gelboServer) handler(mode int, ctx context.Context, req *pb.GelboReques
 				resultCmds = inputCmds.evaluate()
 			}
 		}
-		if err := execGrpcAction(reqInfo, inputCmds, resultCmds); err != nil {
+		if err := execGrpcAction(ctx, reqInfo, inputCmds, resultCmds); err != nil {
 			wg.done()
 			errChan <- err
 			return
@@ -292,11 +318,18 @@ func (reqInfo *RequestInfo) validateCommandsForGrpc(mode int, req *pb.GelboReque
 	return inputCmds
 }
 
-func execGrpcAction(reqInfo *RequestInfo, inputCmds, resultCmds *Commands) error {
+func execGrpcAction(ctx context.Context, reqInfo *RequestInfo, inputCmds, resultCmds *Commands) error {
 	if inputCmds.needsAction() {
 		if arrayContains(inputCmds.actions, "sleep") {
 			sleep, _ := strconv.Atoi(resultCmds.getValue("sleep"))
 			time.Sleep(time.Duration(sleep) * time.Millisecond)
+		}
+		if arrayContains(inputCmds.actions, "disconnect") {
+			if pr, ok := peer.FromContext(ctx); ok {
+				remoteAddr := pr.Addr.String()
+				disconnect(remoteAddr, reqInfo.Proto, resultCmds.getValue("disconnect") == "rst")
+			}
+			return nil
 		}
 		if arrayContains(inputCmds.actions, "cpu") {
 			cpu, _ := strconv.ParseFloat(resultCmds.getValue("cpu"), 64)
@@ -736,6 +769,7 @@ func convRequestToMap(req *pb.GelboRequest) map[string][]string {
 		"repeat":      req.GetRepeat(),
 		"dataonly":    req.GetDataonly(),
 		"noop":        req.GetNoop(),
+		"disconnect":  req.GetDisconnect(),
 		"ifclientip":  req.GetIfclientip(),
 		"ifproxy1ip":  req.GetIfproxy1Ip(),
 		"ifproxy2ip":  req.GetIfproxy2Ip(),
@@ -772,6 +806,7 @@ func convCommandsToMap(cmds *Commands) map[string]string {
 		"repeat":      cmds.Repeat,
 		"dataonly":    cmds.DataOnly,
 		"noop":        cmds.Noop,
+		"disconnect":  cmds.Disconnect,
 		"ifclientip":  cmds.IfClientIP,
 		"ifproxy1ip":  cmds.IfProxy1IP,
 		"ifproxy2ip":  cmds.IfProxy2IP,

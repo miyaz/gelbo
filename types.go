@@ -151,6 +151,7 @@ type Commands struct {
 	Chunk       string `json:"chunk,omitempty"`
 	Stdout      string `json:"stdout,omitempty"`
 	Stderr      string `json:"stderr,omitempty"`
+	Disconnect  string `json:"disconnect,omitempty"`
 	Repeat      string `json:"repeat,omitempty"`
 	DataOnly    string `json:"dataonly,omitempty"`
 	Noop        string `json:"noop,omitempty"`
@@ -198,6 +199,8 @@ func (cmds *Commands) getValue(key string) (ret string) {
 		ret = cmds.Stdout
 	case "stderr":
 		ret = cmds.Stderr
+	case "disconnect":
+		ret = cmds.Disconnect
 	case "repeat":
 		ret = cmds.Repeat
 	case "dataonly":
@@ -236,6 +239,8 @@ func (cmds *Commands) setValue(key, value string) {
 		cmds.Stdout = value
 	case "stderr":
 		cmds.Stderr = value
+	case "disconnect":
+		cmds.Disconnect = value
 	case "repeat":
 		cmds.Repeat = value
 	case "dataonly":
@@ -274,6 +279,7 @@ func newValidator() (map[string]*regexp.Regexp, map[string]*regexp.Regexp) {
 		regexpHeader       = "^([a-zA-Z0-9-]+): .+$"
 		regexpHeaderName   = "^([a-zA-Z0-9-]+)$"
 		regexpModeOn       = "^(on|1|t|true)$"
+		regexpDisconnect   = "^(fin|rst)$"
 		regexpHostname     = "([a-zA-Z0-9-.]+)"
 		regexpAZone        = "([a-z]{2}-[a-z]+-[1-9][a-d])"
 		regexpInstanceType = "(([a-z0-9]+)\\.([a-z0-9]+))"
@@ -293,6 +299,7 @@ func newValidator() (map[string]*regexp.Regexp, map[string]*regexp.Regexp) {
 	vh["chunk"] = regexp.MustCompile(regexpModeOn)
 	vh["stdout"] = regexp.MustCompile(regexpAll)
 	vh["stderr"] = regexp.MustCompile(regexpAll)
+	vh["disconnect"] = regexp.MustCompile(regexpDisconnect)
 	vh["ifhost"] = regexp.MustCompile("^(" + regexpHostname + "(" + orSeparator + regexpHostname + ")*)$")
 	vh["ifaz"] = regexp.MustCompile("^(" + regexpAZone + "(" + orSeparator + regexpAZone + ")*)$")
 	vh["iftype"] = regexp.MustCompile("^(" + regexpInstanceType + "(" + orSeparator + regexpInstanceType + ")*)$")
@@ -597,7 +604,6 @@ func (csm *ConnStateMap) get(k string) (*ConnState, bool) {
 	v, ok := csm.m[k]
 	return v, ok
 }
-
 // getByRemoteAddr finds a ConnState whose key starts with "remoteAddr->".
 // Used by HTTP handlers that only know r.RemoteAddr and not the local address.
 func (csm *ConnStateMap) getByRemoteAddr(remoteAddr string) (*ConnState, bool) {

@@ -26,16 +26,17 @@ message GelboRequest {
   string repeat = 12;
   string dataonly = 13;
   string noop = 14;
-  string ifclientip = 15;
-  string ifproxy1ip = 16;
-  string ifproxy2ip = 17;
-  string ifproxy3ip = 18;
-  string iflasthopip = 19;
-  string iftargetip = 20;
-  string ifhostip = 21;
-  string ifhost = 22;
-  string ifaz = 23;
-  string iftype = 24;
+  string disconnect = 15;
+  string ifclientip = 16;
+  string ifproxy1ip = 17;
+  string ifproxy2ip = 18;
+  string ifproxy3ip = 19;
+  string iflasthopip = 20;
+  string iftargetip = 21;
+  string ifhostip = 22;
+  string ifhost = 23;
+  string ifaz = 24;
+  string iftype = 25;
 }
 
 message GelboResponse {
