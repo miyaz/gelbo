@@ -88,6 +88,7 @@ The following features are not available in the Lambda environment:
 - Resource control (cpu/memory)
 - Arbitrary command execution (/exec/)
 - Container stop (/stop/)
+- TCP disconnect control (disconnect)
 
 ## Available Features
 

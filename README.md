@@ -19,6 +19,8 @@
     * Request information confirmation or statistics confirmation function
   * Delay response only on a specified target (or ELB node) in AZ-1a.
     * If condition specification function AND Response control (sleep/size/status/chunk) function
+  * Forcibly disconnect TCP connections to verify ELB reconnection behavior and client retry logic.
+    * If condition specification function AND Response control (disconnect) function
 
 ## Installation methods
 
@@ -113,10 +115,7 @@ Currently, gelbo supports the following options:
 * -interval {interval seconds}
   * TCP keep-alive probe interval value. (default: 15).
   * TCP keep-alive probe is not sent if the value is 0.
-* -wsping {WebSocket ping frame transmission interval (seconds))
-  * The interval to send Ping frames to the client on the WebSocket connection (default: 30).
-  * Specify a value greater than 0.
-* -wsping {WebSocket PING frame transmission interval (seconds))
+* -wsping {WebSocket PING frame transmission interval (seconds)}
   * The interval to send PING frames to the client on the WebSocket connection (default: 30).
   * Specify a value greater than 0.
 * -grpcping {gRPC PING frame transmission interval (seconds)}
@@ -212,9 +211,9 @@ docker run -d --restart=always -p 80:80 --name gelbo public.ecr.aws/h0g2h5b7/gel
     * In case of running gelbo as a Docker container and IMDSv1 is not available, you can set the HopLimit to 2 to retrieve the information from IMDSv2:
     * `aws ec2 modify-instance-metadata-options --instance-id {instance ID} --http-put-response-hop-limit 2`
 
-## Response Control (sleep/size/status/chunk)
+## Response Control (sleep/size/status/chunk/disconnect)
 
-* Responds according to sleep (response delay time), size (response size), and status (status code), chunk (chunked transfer) specified in the query string. 
+* Responds according to sleep (response delay time), size (response size), and status (status code), chunk (chunked transfer), disconnect (TCP disconnection) specified in the query string. 
 
 ```
 % curl "gelbo-xxxxxxxxx.ap-northeast-1.elb.amazonaws.com/?size=1000-2000&sleep=500-4000&status=60"
@@ -255,6 +254,11 @@ L4jGiMXWdk36Ll9BtgOe29YlL9Ktwciqv2SpLutyvcpjdPujhyoEiBiUfXrRspItbx99oQUBEb3yd5BO
   * Same as specifying "1", "t", "true" instead of "on".
   * Responds data chunked (Transfer-Encoding: chunked)
   * Only supports HTTP/1.1
+* disconnect=fin or rst
+  * Disconnects the TCP connection after the sleep duration (if specified).
+  * fin: closes the connection gracefully by sending a FIN packet.
+  * rst: forcibly closes the connection by sending a RST packet.
+  * Can also be used with gRPC (grpc/grpcs).
 * direction.result
   * Responds "invalid" if you specify an unexpected value (not a number of hyphen).
     * In the example above, 60 is not a valid value for the status, so the response is "invalid".
@@ -429,6 +433,8 @@ ip-172-31-42-159.ap-northeast-1.compute.internal
 * Stop the container by using /stop/.
 * Restart automatically if you specify '--restart=always' when running docker run.
 * You can use this to intentionally bring down the process at any time, such as when verifying the behavior of Auto Scaling self-healing.
+* To stop gracefully (waiting for in-flight requests to complete), use `/stop/?graceful`.
+  * Performs a graceful shutdown of HTTP, HTTPS, and gRPC servers (with 30-second timeout) before exiting.
 
 ## Statistics Confirmation
 
@@ -531,6 +537,9 @@ http://169.254.170.2/v4/2612bc9219074b7ba718fbac6bd2bb98-3303031112
 * /env/?key={environment variable name} displays the value of the specified environment variable.
 * You can specify multiple key parameters (as shown in the example above).
 * You can specify different environment variables in the ECS task checking them switching during a blue/green deployment, etc.
+* If no `key` parameter is specified, all environment variables are returned as a JSON object.
+  * Environment variable names that appear to contain credentials (e.g. those containing `ACCESS_KEY`, `SESSION_TOKEN`, `SECURITY_TOKEN`, `PRIVATE_KEY`, `PASSWORD`, or `CREDENTIAL`) are masked as `"REDACTED"` for security.
+  * Example: `curl "gelbo-xxxxxxxxx.ap-northeast-1.elb.amazonaws.com/env/"`
 
 ## WebSocket
 
@@ -597,6 +606,10 @@ http://169.254.170.2/v4/2612bc9219074b7ba718fbac6bd2bb98-3303031112
                 * noop=on
                     * Same as specifying "1", "t", "true" instead of "on".
                     * No Operation, meaning no response is returned
+                * disconnect=fin or rst
+                    * Disconnects the TCP connection after the sleep duration (if specified).
+                    * fin: closes the connection gracefully by sending a FIN packet.
+                    * rst: forcibly closes the connection by sending a RST packet.
     * elbgrpc.GelboService.Code{gRPC status code}Sleep{milliseconds}
         * Processes the status code (0~16) or milliseconds included in the method name and responds. (For example, specifying Code3Sleep2000 will respond with status code 3 [INVALID_ARGUMENT] after 2 seconds)
         * For a list of status codes, please refer to [here](https://grpc.io/docs/guides/status-codes/)
