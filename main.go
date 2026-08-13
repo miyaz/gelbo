@@ -395,14 +395,32 @@ func stopHandler(w http.ResponseWriter, r *http.Request) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				grpcSrv.GracefulStop()
+				stopped := make(chan struct{})
+				go func() {
+					grpcSrv.GracefulStop()
+					close(stopped)
+				}()
+				select {
+				case <-stopped:
+				case <-ctx.Done():
+					grpcSrv.Stop()
+				}
 			}()
 		}
 		if grpcsSrv != nil {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				grpcsSrv.GracefulStop()
+				stopped := make(chan struct{})
+				go func() {
+					grpcsSrv.GracefulStop()
+					close(stopped)
+				}()
+				select {
+				case <-stopped:
+				case <-ctx.Done():
+					grpcsSrv.Stop()
+				}
 			}()
 		}
 		if httpSrv != nil {
