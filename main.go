@@ -513,11 +513,6 @@ func execAction(w http.ResponseWriter, r *http.Request, respInfo *ResponseInfo) 
 			sleep, _ := strconv.Atoi(respInfo.Direction.Result.getValue("sleep"))
 			time.Sleep(time.Duration(sleep) * time.Millisecond)
 		}
-		if arrayContains(respInfo.Direction.Input.actions, "disconnect") {
-			proto, _ := r.Context().Value("proto").(string)
-			disconnect(r.RemoteAddr, proto, respInfo.Direction.Result.getValue("disconnect") == "rst")
-			return 0, 0
-		}
 		if arrayContains(respInfo.Direction.Input.actions, "status") {
 			statusCode, _ = strconv.Atoi(respInfo.Direction.Result.getValue("status"))
 		}
@@ -550,6 +545,11 @@ func execAction(w http.ResponseWriter, r *http.Request, respInfo *ResponseInfo) 
 		}
 		if arrayContains(respInfo.Direction.Input.actions, "stderr") {
 			fmt.Fprintf(os.Stderr, "%s\n", respInfo.Direction.Result.getValue("stderr"))
+		}
+		if arrayContains(respInfo.Direction.Input.actions, "disconnect") {
+			proto, _ := r.Context().Value("proto").(string)
+			disconnect(r.RemoteAddr, proto, respInfo.Direction.Result.getValue("disconnect") == "rst")
+			return 0, 0
 		}
 	}
 	for key, value := range headerMap.getAll() {

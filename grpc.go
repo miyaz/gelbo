@@ -330,13 +330,6 @@ func execGrpcAction(ctx context.Context, reqInfo *RequestInfo, inputCmds, result
 			sleep, _ := strconv.Atoi(resultCmds.getValue("sleep"))
 			time.Sleep(time.Duration(sleep) * time.Millisecond)
 		}
-		if arrayContains(inputCmds.actions, "disconnect") {
-			if pr, ok := peer.FromContext(ctx); ok {
-				remoteAddr := pr.Addr.String()
-				disconnect(remoteAddr, reqInfo.Proto, resultCmds.getValue("disconnect") == "rst")
-			}
-			return nil
-		}
 		if arrayContains(inputCmds.actions, "cpu") {
 			cpu, _ := strconv.ParseFloat(resultCmds.getValue("cpu"), 64)
 			store.resource.CPU.setTarget(cpu)
@@ -369,6 +362,13 @@ func execGrpcAction(ctx context.Context, reqInfo *RequestInfo, inputCmds, result
 			codeNum, _ := strconv.Atoi(resultCmds.getValue("code"))
 			code := getCodeClass(int32(codeNum))
 			return status.Error(code, code.String()) // return nil if codeNum is 0(OK)
+		}
+		if arrayContains(inputCmds.actions, "disconnect") {
+			if pr, ok := peer.FromContext(ctx); ok {
+				remoteAddr := pr.Addr.String()
+				disconnect(remoteAddr, reqInfo.Proto, resultCmds.getValue("disconnect") == "rst")
+			}
+			return nil
 		}
 	}
 	return nil
