@@ -58,6 +58,23 @@ func newGelboServer() *gelboServer {
 	return &gelboServer{}
 }
 
+// grpcTrackedConn wraps net.Conn to decrement total_conns when the connection is closed
+// by the gRPC stack (natural close). sync.Once ensures the counter is decremented exactly once
+// even if Close() is called multiple times or concurrently with disconnect().
+type grpcTrackedConn struct {
+	net.Conn
+	remoteAddr string
+	once       sync.Once
+}
+
+func (c *grpcTrackedConn) Close() error {
+	c.once.Do(func() {
+		atomic.AddInt64(&cw.total, -1)
+		remoteNodes.addTotalConns(extractIPAddress(c.remoteAddr), -1)
+	})
+	return c.Conn.Close()
+}
+
 // grpcConnListener wraps net.Listener to register each accepted connection into csMaps
 // so that the disconnect feature can look up and close gRPC connections by remote address.
 type grpcConnListener struct {
@@ -78,8 +95,11 @@ func (l *grpcConnListener) Accept() (net.Conn, error) {
 	if _, ok := csMaps.get(key); ok {
 		csMaps.del(key)
 	}
-	csMaps.set(key, conn)
-	return conn, nil
+	tracked := &grpcTrackedConn{Conn: conn, remoteAddr: remoteAddr}
+	csMaps.set(key, tracked)
+	atomic.AddInt64(&cw.total, 1)
+	remoteNodes.addTotalConns(extractIPAddress(remoteAddr), 1)
+	return tracked, nil
 }
 
 func startGrpcServer() {

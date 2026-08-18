@@ -594,15 +594,25 @@ func disconnect(remoteAddr string, proto string, force bool) {
 		return
 	}
 	key := connKey(remoteAddr, cs.conn.LocalAddr().String())
-	closeConnection(cs.conn, force)
-	// gRPC connections are not managed by OnStateChange, so skip counter operations.
-	// For h2c, both active and total are already decremented at hijack time by OnStateChange.
 	isGrpc := proto == "grpc" || proto == "grpcs"
-	if !isGrpc && proto != "h2c" {
-		if cs.curState == http.StateActive {
-			atomic.AddInt64(&cw.active, -1)
-			remoteNodes.addActiveConns(extractIPAddress(remoteAddr), -1)
+	if isGrpc {
+		// grpcTrackedConn wraps the real conn. Call Once-guarded close to decrement total_conns,
+		// then pass the inner conn to closeConnection() so linger/RST can be applied correctly.
+		if tracked, ok := cs.conn.(*grpcTrackedConn); ok {
+			tracked.once.Do(func() {
+				atomic.AddInt64(&cw.total, -1)
+				remoteNodes.addTotalConns(extractIPAddress(remoteAddr), -1)
+			})
+			closeConnection(tracked.Conn, force)
+		} else {
+			closeConnection(cs.conn, force)
 		}
+	} else {
+		closeConnection(cs.conn, force)
+	}
+	// For h2c, total is already decremented at hijack time by OnStateChange.
+	// active_conns is managed by handlerWrapper's defer, so no adjustment needed here.
+	if !isGrpc && proto != "h2c" {
 		if cs.curState != http.StateClosed {
 			atomic.AddInt64(&cw.total, -1)
 			remoteNodes.addTotalConns(extractIPAddress(remoteAddr), -1)
