@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	pb "github.com/miyaz/gelbo/grpc/pb"
@@ -512,6 +513,17 @@ func (s *gelboServer) UnaryInterceptor() grpc.UnaryServerInterceptor {
 		reqsize := getBinarySize(req)
 		logger := initLoggerForUnary(ctx, req, info)
 
+		atomic.AddInt64(&cw.active, 1)
+		if pr, ok := peer.FromContext(ctx); ok {
+			remoteNodes.addActiveConns(extractIPAddress(pr.Addr.String()), 1)
+		}
+		defer func() {
+			atomic.AddInt64(&cw.active, -1)
+			if pr, ok := peer.FromContext(ctx); ok {
+				remoteNodes.addActiveConns(extractIPAddress(pr.Addr.String()), -1)
+			}
+		}()
+
 		resp, err := handler(ctx, req)
 		if err != nil {
 			var code int32 = 2 // 2 = codes.Unknown
@@ -595,6 +607,17 @@ func (s *gelboServer) StreamInterceptor() grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		logger := initLoggerForStream(ss.Context(), info).forStream()
 		logger.Log().Str("action", "open").Msg("")
+
+		atomic.AddInt64(&cw.active, 1)
+		if pr, ok := peer.FromContext(ss.Context()); ok {
+			remoteNodes.addActiveConns(extractIPAddress(pr.Addr.String()), 1)
+		}
+		defer func() {
+			atomic.AddInt64(&cw.active, -1)
+			if pr, ok := peer.FromContext(ss.Context()); ok {
+				remoteNodes.addActiveConns(extractIPAddress(pr.Addr.String()), -1)
+			}
+		}()
 
 		err := handler(srv, &streamWrapper{ss, logger})
 		if err != nil {

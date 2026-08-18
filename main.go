@@ -120,7 +120,7 @@ func main() {
 	router.HandleFunc("/files/", handlerWrapper(filesDLHandler))
 	router.HandleFunc("/chat/", handlerWrapper(filesDLHandler))
 	router.HandleFunc("/ws/", wsHandler)
-	router.HandleFunc("/monitor/", monitorHandler)
+	router.HandleFunc("/monitor/", noLogHandlerWrapper(monitorHandler))
 	router.HandleFunc("/", handlerWrapper(defaultHandler))
 	h2cWrapper := &HandlerH2C{
 		Handler:  router,
@@ -223,21 +223,14 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 	cs.updateState(state)
 	switch state {
 	case http.StateActive:
-		atomic.AddInt64(&cw.active, 1)
-		remoteNodes.addActiveConns(extractIPAddress(remoteAddr), 1)
+		// active_conns is now counted in handlerWrapper (per-request/stream).
 	case http.StateIdle:
-		atomic.AddInt64(&cw.active, -1)
-		remoteNodes.addActiveConns(extractIPAddress(remoteAddr), -1)
+		// active_conns is now counted in handlerWrapper (per-request/stream).
 	case http.StateHijacked:
-		atomic.AddInt64(&cw.active, -1)
-		remoteNodes.addActiveConns(extractIPAddress(remoteAddr), -1)
+		// active_conns is managed by handlerWrapper; only decrement total here.
 		atomic.AddInt64(&cw.total, -1)
 		remoteNodes.addTotalConns(extractIPAddress(remoteAddr), -1)
 	case http.StateClosed:
-		if cs.prevState == http.StateActive {
-			atomic.AddInt64(&cw.active, -1)
-			remoteNodes.addActiveConns(extractIPAddress(remoteAddr), -1)
-		}
 		remoteNodes.addTotalConns(extractIPAddress(remoteAddr), -1)
 		atomic.AddInt64(&cw.total, -1)
 		csMaps.del(key)
@@ -275,8 +268,35 @@ func handlerWrapper(fn http.HandlerFunc) http.HandlerFunc {
 		}
 		httpLogger, _ := r.Context().Value("logger").(*HttpLogger)
 		httpLogger.init(r, reuse)
+
+		// Count active requests per handler invocation.
+		// This works correctly for HTTP/1.1 (1 request at a time per conn) and
+		// HTTP/2 (multiple concurrent streams over a single TCP connection).
+		remoteIP := extractIPAddress(r.RemoteAddr)
+		atomic.AddInt64(&cw.active, 1)
+		remoteNodes.addActiveConns(remoteIP, 1)
+		defer func() {
+			atomic.AddInt64(&cw.active, -1)
+			remoteNodes.addActiveConns(remoteIP, -1)
+		}()
+
 		fn(w, r)
 		httpLogger.log()
+	}
+}
+
+// noLogHandlerWrapper is like handlerWrapper but suppresses access logging.
+// Used for endpoints like /monitor/ where frequent polling would flood the log.
+func noLogHandlerWrapper(fn http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		remoteIP := extractIPAddress(r.RemoteAddr)
+		atomic.AddInt64(&cw.active, 1)
+		remoteNodes.addActiveConns(remoteIP, 1)
+		defer func() {
+			atomic.AddInt64(&cw.active, -1)
+			remoteNodes.addActiveConns(remoteIP, -1)
+		}()
+		fn(w, r)
 	}
 }
 
