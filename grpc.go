@@ -207,7 +207,19 @@ func (s *gelboServer) ServerStream(req *pb.GelboRequest, stream pb.GelboService_
 	go s.handler(ServerStream, stream.Context(), req, sendChan, errChan, wg)
 	go s.sender(stream, sendChan, errChan, wg)
 
-	wg.wait()
+	// Wait for either all handlers to finish (normal path) or an error from sender
+	// (e.g. TCP disconnect). In the error case we must NOT close(sendChan) because
+	// handler goroutines may still be alive and would panic on send to closed channel.
+	waitDone := make(chan struct{})
+	go func() {
+		wg.wait()
+		close(waitDone)
+	}()
+	select {
+	case err := <-errChan:
+		return err
+	case <-waitDone:
+	}
 	close(sendChan)
 	for {
 		select {
@@ -230,7 +242,20 @@ func (s *gelboServer) BidiStream(stream pb.GelboService_BidiStreamServer) error 
 		select {
 		case req, ok := <-recvChan:
 			if !ok {
-				wg.wait()
+				// All messages received (EOF). Wait for all handlers to finish,
+				// but also watch errChan in case sender fails (e.g. disconnect).
+				// Must NOT close(sendChan) in the error path because handler
+				// goroutines may still be alive and would panic on send to closed channel.
+				waitDone := make(chan struct{})
+				go func() {
+					wg.wait()
+					close(waitDone)
+				}()
+				select {
+				case err := <-errChan:
+					return err
+				case <-waitDone:
+				}
 				select {
 				case err := <-errChan:
 					return err
