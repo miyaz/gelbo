@@ -228,6 +228,9 @@ func (cw *ConnectionWatcher) OnStateChange(conn net.Conn, state http.ConnState) 
 		// active_conns is now counted in handlerWrapper (per-request/stream).
 	case http.StateHijacked:
 		// active_conns is managed by handlerWrapper; only decrement total here.
+		// The connection was hijacked (h2c or websocket) and is no longer tracked
+		// by net/http. For h2c, HandlerH2C.ServeHTTP re-counts total_conns around
+		// ServeConn for the actual connection lifetime.
 		atomic.AddInt64(&cw.total, -1)
 		remoteNodes.addTotalConns(extractIPAddress(remoteAddr), -1)
 	case http.StateClosed:
@@ -610,7 +613,8 @@ func disconnect(remoteAddr string, proto string, force bool) {
 	} else {
 		closeConnection(cs.conn, force)
 	}
-	// For h2c, total is already decremented at hijack time by OnStateChange.
+	// For h2c, total_conns is managed by HandlerH2C.ServeHTTP around ServeConn:
+	// it is decremented when ServeConn returns after the connection is closed here.
 	// active_conns is managed by handlerWrapper's defer, so no adjustment needed here.
 	if !isGrpc && proto != "h2c" {
 		if cs.curState != http.StateClosed {

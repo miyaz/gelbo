@@ -16,6 +16,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync/atomic"
 
 	"github.com/rs/zerolog/log"
 	"golang.org/x/net/http2"
@@ -68,6 +69,19 @@ func (h *HandlerH2C) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer conn.Close()
+
+		// The original connection was hijacked in initH2CWithPriorKnowledge, so
+		// OnStateChange (StateHijacked) already decremented total_conns. Re-count
+		// total_conns for the lifetime of the h2c connection (the ServeConn call).
+		// The matching decrement runs after ServeConn returns (connection closed).
+		remoteIP := extractIPAddress(conn.RemoteAddr().String())
+		atomic.AddInt64(&cw.total, 1)
+		remoteNodes.addTotalConns(remoteIP, 1)
+		defer func() {
+			atomic.AddInt64(&cw.total, -1)
+			remoteNodes.addTotalConns(remoteIP, -1)
+		}()
+
 		h.H2Server.ServeConn(conn, &http2.ServeConnOpts{
 			Context: ctx,
 			Handler: h.Handler,
