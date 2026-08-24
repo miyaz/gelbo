@@ -488,6 +488,9 @@ ip-172-31-42-159.ap-northeast-1.compute.internal
   * received_bytes - the request size (excluding the header)
   * total_conns - the number of TCP connections (e.g. keep-alive)
   * active_conns - the number of active requests
+* HTTP[S] and gRPC[S] requests are both counted.
+  * For gRPC, request_count is counted per received message (e.g. each message of a client stream), and sent_bytes/received_bytes use the same size as the gRPC log output.
+  * active_conns counts in-flight requests and open streams, so with HTTP/2 or gRPC (multiple streams per connection) it can exceed total_conns.
 * The IP addresses under "elbs" represent the ELB nodes. 
 * Displayed in a human-readable format (e.g. "787.2 MB") by default, but you can specify "?raw" in the query string to get the raw data.
 * You can use this to check the distribution (bias) of the requests.
@@ -583,6 +586,7 @@ http://169.254.170.2/v4/2612bc9219074b7ba718fbac6bd2bb98-3303031112
 ### Description
 
 * By default, grpc (plaintext) listens on port 50051, and grpcs (over TLS) listens on port 50052. (These can be changed with the -grpc / -grpcs options respectively)
+* gRPC[S] requests are also reflected in the statistics (`/monitor/`), with request_count counted per received message. See the Statistics Confirmation section for details.
 * For message transmission and reception, use [grpcurl](https://github.com/fullstorydev/grpcurl) or implement your own client. (The following execution examples use grpcurl)
     * The Protocol Buffers definition file implemented in gelbo can be downloaded with `curl -O http[s]://{domain}/files/gelbo.proto`
 * Available methods:
