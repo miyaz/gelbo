@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +27,7 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -698,17 +696,15 @@ func (s *gelboServer) StreamInterceptor() grpc.StreamServerInterceptor {
 }
 
 func getBinarySize(val interface{}) int64 {
-	// see https://github.com/golang/go/issues/31664
-	// prevent panic exit until the above issue is resolved
+	// Use the protobuf wire size to reflect the actual gRPC (HTTP/2) message
+	// payload size (excluding the 5-byte length-prefix and HTTP/2 framing),
+	// keeping it consistent with the HTTP body size semantics.
 	defer func() { recover() }()
 
-	var buff bytes.Buffer
-	enc := gob.NewEncoder(&buff)
-	err := enc.Encode(val)
-	if err != nil {
-		return 0
+	if msg, ok := val.(proto.Message); ok {
+		return int64(proto.Size(msg))
 	}
-	return int64(binary.Size(buff.Bytes()))
+	return 0
 }
 
 // === other utilities & small parts
