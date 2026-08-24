@@ -652,6 +652,49 @@ func (rnm *RemoteNodeMap) addActiveConns(remoteAddr string, cnt int64) {
 	rnm.m[remoteAddr].addActiveConns(cnt)
 }
 
+// reflectReceived ... increment request count and add received bytes for the remote node.
+// Creates the node entry if it does not exist yet (safe against missing keys).
+func (rnm *RemoteNodeMap) reflectReceived(remoteAddr string, receivedBytes int64) {
+	rnm.Lock()
+	defer rnm.Unlock()
+	if _, ok := rnm.m[remoteAddr]; !ok {
+		now := time.Now().UnixNano()
+		rnm.m[remoteAddr] = NewNodeInfo()
+		rnm.m[remoteAddr].CreatedAt = now
+	}
+	rnm.m[remoteAddr].addReceivedBytes(receivedBytes)
+}
+
+// reflectSent ... add sent bytes for the remote node.
+// Creates the node entry if it does not exist yet (safe against missing keys).
+func (rnm *RemoteNodeMap) reflectSent(remoteAddr string, sentBytes int64) {
+	rnm.Lock()
+	defer rnm.Unlock()
+	if _, ok := rnm.m[remoteAddr]; !ok {
+		now := time.Now().UnixNano()
+		rnm.m[remoteAddr] = NewNodeInfo()
+		rnm.m[remoteAddr].CreatedAt = now
+	}
+	rnm.m[remoteAddr].addSentBytes(sentBytes)
+}
+
+// registerELB ... register the remote node into store.node.ELBs under lastHopIP.
+// Called when a request arrives via an ELB (X-Forwarded-For present), matching HTTP behavior.
+func (rnm *RemoteNodeMap) registerELB(lastHopIP string) {
+	if lastHopIP == "" {
+		return
+	}
+	rnm.Lock()
+	node, ok := rnm.m[lastHopIP]
+	rnm.Unlock()
+	if !ok {
+		return
+	}
+	store.node.Lock()
+	defer store.node.Unlock()
+	store.node.ELBs[lastHopIP] = node
+}
+
 var headerMap = NewHeaderMap()
 
 // HeaderMap ... map of response header with exclusive control

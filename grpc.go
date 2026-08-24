@@ -533,6 +533,9 @@ func (s *gelboServer) UnaryInterceptor() grpc.UnaryServerInterceptor {
 		reqsize := getBinarySize(req)
 		logger := initLoggerForUnary(ctx, req, info)
 
+		mds := getMDSetFromContext(ctx)
+		srcIP := mds.SrcIP
+
 		atomic.AddInt64(&cw.active, 1)
 		if pr, ok := peer.FromContext(ctx); ok {
 			remoteNodes.addActiveConns(extractIPAddress(pr.Addr.String()), 1)
@@ -543,6 +546,15 @@ func (s *gelboServer) UnaryInterceptor() grpc.UnaryServerInterceptor {
 				remoteNodes.addActiveConns(extractIPAddress(pr.Addr.String()), -1)
 			}
 		}()
+
+		// reflect received message into stats (request_count +1, received_bytes)
+		store.node.addReceivedBytes(reqsize)
+		if srcIP != "" {
+			remoteNodes.reflectReceived(srcIP, reqsize)
+			if mds.LastHopIP != "" {
+				remoteNodes.registerELB(mds.LastHopIP)
+			}
+		}
 
 		resp, err := handler(ctx, req)
 		if err != nil {
@@ -557,9 +569,15 @@ func (s *gelboServer) UnaryInterceptor() grpc.UnaryServerInterceptor {
 				Dur("duration", time.Now().Sub(logger.recvtime)).
 				Str("error", fmt.Sprintf("%v", err)).Msg("")
 		} else {
+			// reflect sent message into stats (sent_bytes)
+			respsize := getBinarySize(resp)
+			store.node.addSentBytes(respsize)
+			if srcIP != "" {
+				remoteNodes.reflectSent(srcIP, respsize)
+			}
 			logger.forUnary().Log().
 				Int64("reqsize", reqsize).
-				Int64("size", getBinarySize(resp)).
+				Int64("size", respsize).
 				Int32("code", 0). // 0 = codes.OK
 				Time("sendtime", time.Now()).
 				Dur("duration", time.Now().Sub(logger.recvtime)).Msg("")
@@ -570,7 +588,9 @@ func (s *gelboServer) UnaryInterceptor() grpc.UnaryServerInterceptor {
 
 type streamWrapper struct {
 	grpc.ServerStream
-	logger *zerolog.Logger
+	logger    *zerolog.Logger
+	srcIP     string
+	lastHopIP string
 }
 
 func (s *streamWrapper) RecvMsg(req interface{}) error {
@@ -580,11 +600,20 @@ func (s *streamWrapper) RecvMsg(req interface{}) error {
 		params = tmpReq.String()
 	}
 	if err == nil {
+		reqsize := getBinarySize(req)
+		// reflect received message into stats (request_count +1, received_bytes)
+		store.node.addReceivedBytes(reqsize)
+		if s.srcIP != "" {
+			remoteNodes.reflectReceived(s.srcIP, reqsize)
+			if s.lastHopIP != "" {
+				remoteNodes.registerELB(s.lastHopIP)
+			}
+		}
 		s.logger.Log().
 			Str("params", params).
 			Str("action", "recv").
 			Time("recvtime", time.Now()).
-			Int64("reqsize", getBinarySize(req)).Msg("")
+			Int64("reqsize", reqsize).Msg("")
 	} else if errors.Is(err, io.EOF) {
 		s.logger.Log().
 			Str("action", "recv_end").
@@ -614,11 +643,17 @@ func (s *streamWrapper) SendMsg(resp interface{}) error {
 			Int64("size", getBinarySize(resp)).
 			Str("error", fmt.Sprintf("%v", err)).Msg("")
 	} else {
+		respsize := getBinarySize(resp)
+		// reflect sent message into stats (sent_bytes)
+		store.node.addSentBytes(respsize)
+		if s.srcIP != "" {
+			remoteNodes.reflectSent(s.srcIP, respsize)
+		}
 		s.logger.Log().
 			Str("action", "send").
 			Int32("code", 0). // 0 = codes.OK
 			Time("sendtime", time.Now()).
-			Int64("size", getBinarySize(resp)).Msg("")
+			Int64("size", respsize).Msg("")
 	}
 	return err
 }
@@ -627,6 +662,8 @@ func (s *gelboServer) StreamInterceptor() grpc.StreamServerInterceptor {
 	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		logger := initLoggerForStream(ss.Context(), info).forStream()
 		logger.Log().Str("action", "open").Msg("")
+
+		mds := getMDSetFromContext(ss.Context())
 
 		atomic.AddInt64(&cw.active, 1)
 		if pr, ok := peer.FromContext(ss.Context()); ok {
@@ -639,7 +676,7 @@ func (s *gelboServer) StreamInterceptor() grpc.StreamServerInterceptor {
 			}
 		}()
 
-		err := handler(srv, &streamWrapper{ss, logger})
+		err := handler(srv, &streamWrapper{ServerStream: ss, logger: logger, srcIP: mds.SrcIP, lastHopIP: mds.LastHopIP})
 		if err != nil {
 			var code int32 = 2 // 2 = codes.Unknown
 			if stat, ok := status.FromError(err); ok {

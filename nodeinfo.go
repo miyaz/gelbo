@@ -55,6 +55,23 @@ func (ni *NodeInfo) reflectRequest(receivedBytes, sentBytes int64) {
 	ni.RequestCount++
 	ni.UpdatedAt = time.Now().UnixNano()
 }
+
+// addReceivedBytes ... add received bytes and increment request count (used on message receive)
+func (ni *NodeInfo) addReceivedBytes(receivedBytes int64) {
+	ni.Lock()
+	defer ni.Unlock()
+	ni.ReceivedBytes += receivedBytes
+	ni.RequestCount++
+	ni.UpdatedAt = time.Now().UnixNano()
+}
+
+// addSentBytes ... add sent bytes (used on message send, does not increment request count)
+func (ni *NodeInfo) addSentBytes(sentBytes int64) {
+	ni.Lock()
+	defer ni.Unlock()
+	ni.SentBytes += sentBytes
+	ni.UpdatedAt = time.Now().UnixNano()
+}
 func (ni *NodeInfo) getClone() *NodeInfo {
 	ni.RLock()
 	defer ni.RUnlock()
